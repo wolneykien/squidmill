@@ -62,13 +62,13 @@
     (cons 'content content)))
 
 (define (list-report tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (write (log->assoc timestamp elapsed client action/code size method uri ident hierarchy/from content))
+  (write (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))
   (newline)
   tail)
 
 (define (table-update! key update-proc new-tbl old-tbl)
   (let ((new-val (table-ref new-tbl key #f))
-        (old-val (table-ref old-vals key #f)))
+        (old-val (table-ref old-tbl key #f)))
     (cond
      ((not new-val) old-tbl)
      ((not old-val)
@@ -77,33 +77,33 @@
       (table-set! old-tbl key (update-proc new-val old-val))))))
 
 (define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (let ((vals (log->assoc timestamp elapsed client action/code size method uri ident hierarchy/from content)))
+  (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))))
     (cond
      ((table? sum)
       (table-update! 'elapsed + vals sum)
       (table-update! 'size + vals sum)
       (table-update! 'timestamp min vals sum)
       sum)
-     (else
-      (list->table vals)))))
+     (else vals))))
 
 (define (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (let ((vals (log->assoc timestamp elapsed client action/code size method uri ident hierarchy/from content))
+  (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content)))
         (id (or (false-empty ident)
                 (false-empty client))))
-    (if (table? sum)
-        (table-set! sum id
-                    (cond
-                     ((and (table? sum)
-                           (table-ref sum id #f)) =>
-                      (lambda (psum)
-                        (table-update! 'elapsed + vals psum)
-                        (table-update! 'size + vals psum)
-                        (table-update! 'timestamp min vals psum)
-                        psum))
-                     (else (list->table vals))))
-        (list->table (list (cons id
-                                 (list->table vals)))))))
+    (cond
+     ((table? sum)
+      (cond
+       ((table-ref sum id #f) =>
+        (lambda (psum)
+          (table-update! 'elapsed + vals psum)
+          (table-update! 'size + vals psum)
+          (table-update! 'timestamp min vals psum)
+          psum))
+       (else
+        (table-set! sum id vals)))
+      sum)
+     (else
+      (list->table (list (cons id vals)))))))
 
 (define (process-log . args)
   (let ((proc (or (and (not (null? args))
@@ -129,5 +129,8 @@
                                  tail))))))
           tail))))
 
-(write (process-log personal-sum-log))
+(write (map (lambda (entry)
+              (cons (car entry)
+                    (table->list (cdr entry))))
+            (table->list (process-log personal-sum-log))))
 (newline)
