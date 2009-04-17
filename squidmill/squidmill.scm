@@ -76,15 +76,20 @@
      (else
       (table-set! old-tbl key (update-proc new-val old-val))))))
 
-(define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))))
-    (cond
-     ((table? sum)
-      (table-update! 'elapsed + vals sum)
-      (table-update! 'size + vals sum)
-      (table-update! 'timestamp min vals sum)
-      sum)
-     (else vals))))
+(define (sum-log-update! vals sum)
+  (table-update! 'elapsed + vals sum)
+  (table-update! 'size + vals sum)
+  (table-update! 'timestamp min vals sum))
+
+;; (define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
+;;   (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))))
+;;     (cond
+;;      ((table? sum)
+;;       (table-update! 'elapsed + vals sum)
+;;       (table-update! 'size + vals sum)
+;;       (table-update! 'timestamp min vals sum)
+;;       sum)
+;;      (else vals))))
 
 (define (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
   (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content)))
@@ -95,9 +100,7 @@
       (cond
        ((table-ref sum id #f) =>
         (lambda (psum)
-          (table-update! 'elapsed + vals psum)
-          (table-update! 'size + vals psum)
-          (table-update! 'timestamp min vals psum)
+          (sum-log-update! psum)
           psum))
        (else
         (table-set! sum id vals)))
@@ -105,32 +108,36 @@
      (else
       (list->table (list (cons id vals)))))))
 
-(define (process-log . args)
-  (let ((proc (or (and (not (null? args))
-                       (procedure? (car args))
-                       (car args))
-                  list-report))
-        (files (or (and (not (null? args))
-                        (or (and (string? (car args)) args)
-                            (and (string? (cdr args)) (list (cdr args)))
-                            (and (not (null? (cdr args)))
-                                 (string? (cadr args)) (cdr args))))
-                   (list "/var/log/squid/access.log"))))
-    (let next-file ((files files)
-                    (tail #f))
-      (if (not (null? files))
-          (next-file (cdr files)
-                     (call-with-input-file (car files)
-                       (lambda (port)
-                         (let loop ((tail tail))
-                           (let ((ln (read-line port)))
-                             (if (not (eof-object? ln))
-                                 (loop (apply proc tail (string-tokenize ln)))
-                                 tail))))))
+(define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
+  (personal-sum-log (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
+                    timestamp elapsed #f action/code size method uri #f hierarchy/from content))
+
+(define (process-log proc port)
+  (let loop ((tail #f))
+    (let ((ln (read-line port)))
+      (if (not (eof-object? ln))
+          (loop (apply proc tail (string-tokenize ln)))
           tail))))
+
+(define (sum-logs . files)
+  (let ((sum (list->table '())))
+    (for-each     
+     (lambda (file)
+       (sum-log-update!
+        (let* ((l (string-length file))
+               (t (and (>= l 4)
+                       (substring file (- l 4) l))))
+          (call-with-input-file file
+            (lambda (port)
+              (if (and t (equal? t ".scm"))
+                  (read port)
+                  (process-log sum-log port)))))
+          sum))
+     files)
+    sum))
 
 (write (map (lambda (entry)
               (cons (car entry)
                     (table->list (cdr entry))))
-            (table->list (process-log personal-sum-log))))
+            (table->list (apply sum-logs (cdr (command-line))))))
 (newline)
