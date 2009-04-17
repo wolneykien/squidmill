@@ -61,10 +61,10 @@
     (cons 'hierarchy/from hierarchy/from)
     (cons 'content content)))
 
-(define (list-report tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (write (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))
-  (newline)
-  tail)
+;; (define (list-report tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
+;;   (write (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))
+;;   (newline)
+;;   tail)
 
 (define (table-update! key update-proc new-tbl old-tbl)
   (let ((new-val (table-ref new-tbl key #f))
@@ -76,7 +76,7 @@
      (else
       (table-set! old-tbl key (update-proc new-val old-val))))))
 
-(define (sum-log-update! vals sum)
+(define (sum-update! vals sum)
   (table-update! 'elapsed + vals sum)
   (table-update! 'size + vals sum)
   (table-update! 'timestamp min vals sum))
@@ -91,19 +91,21 @@
 ;;       sum)
 ;;      (else vals))))
 
+(define (personal-sum-update! id vals sum)
+  (cond
+   ((table-ref sum id #f) =>
+    (lambda (psum)
+      (sum-update! vals psum)))
+   (else
+    (table-set! sum id vals))))
+
 (define (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
   (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content)))
         (id (or (false-empty ident)
                 (false-empty client))))
     (cond
      ((table? sum)
-      (cond
-       ((table-ref sum id #f) =>
-        (lambda (psum)
-          (sum-log-update! psum)
-          psum))
-       (else
-        (table-set! sum id vals)))
+      (personal-sum-update! id vals sum)
       sum)
      (else
       (list->table (list (cons id vals)))))))
@@ -120,19 +122,24 @@
           tail))))
 
 (define (sum-logs . files)
-  (let ((sum (list->table '())))
-    (for-each     
+  (let ((sum (make-table)))
+    (for-each
      (lambda (file)
-       (sum-log-update!
+       (table-for-each
+        (lambda (id vals)
+          (personal-sum-update! id vals sum))
         (let* ((l (string-length file))
                (t (and (>= l 4)
                        (substring file (- l 4) l))))
           (call-with-input-file file
             (lambda (port)
               (if (and t (equal? t ".scm"))
-                  (read port)
-                  (process-log sum-log port)))))
-          sum))
+                  (list->table
+                   (map (lambda (entry)
+                          (cons (car entry)
+                                (list->table (cdr entry))))
+                        (read port)))
+                  (process-log sum-log port)))))))
      files)
     sum))
 
