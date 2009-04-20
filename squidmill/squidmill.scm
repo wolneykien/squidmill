@@ -70,16 +70,28 @@
   (let ((new-val (table-ref new-tbl key #f))
         (old-val (table-ref old-tbl key #f)))
     (cond
-     ((not new-val) old-tbl)
+     ((not new-val) #f)
      ((not old-val)
-      (table-set! old-tbl key new-val))    
+      (table-set! old-tbl key new-val)
+      #t)
      (else
-      (table-set! old-tbl key (update-proc new-val old-val))))))
+      (let ((val (update-proc new-val old-val)))
+        (and (not (equal? val old-val))
+             (table-set! old-tbl key val)
+             #t))))))
 
 (define (sum-update! vals sum)
-  (table-update! 'elapsed + vals sum)
-  (table-update! 'size + vals sum)
-  (table-update! 'timestamp min vals sum))
+  (if (table-update! 'timestamp max vals sum)
+      (begin
+        (table-update! 'elapsed + vals sum)
+        (table-update! 'size + vals sum)
+        (table-update! 'client (lambda (a b) a) vals sum)
+        (table-update! 'action/code (lambda (a b) a) vals sum)
+        (table-update! 'method (lambda (a b) a) vals sum)
+        (table-update! 'uri (lambda (a b) a) vals sum)
+        (table-update! 'ident (lambda (a b) a) vals sum)
+        (table-update! 'hierarchy/from (lambda (a b) a) vals sum)
+        (table-update! 'content (lambda (a b) a) vals sum))))
 
 ;; (define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
 ;;   (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))))
@@ -121,6 +133,14 @@
           (loop (apply proc tail (string-tokenize ln)))
           tail))))
 
+(define (call-with-input filename proc)
+  (cond
+   ((equal? filename "-")
+    (proc (current-input-port)))
+   ((file-exists? filename)
+    (call-with-input-file filename proc))
+   (else #f)))
+
 (define (sum-logs . files)
   (let ((sum (make-table)))
     (for-each
@@ -131,7 +151,7 @@
         (let* ((l (string-length file))
                (t (and (>= l 4)
                        (substring file (- l 4) l))))
-          (call-with-input-file file
+          (call-with-input file
             (lambda (port)
               (if (and t (equal? t ".scm"))
                   (list->table
