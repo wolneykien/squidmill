@@ -1,9 +1,11 @@
 #!/bin/sh
 
 LOGDIR=/var/log/squid
-MONTHLY="$LOGDIR/squidmill/monthly.scm"
-SUMMARY="$LOGDIR/squidmill/summary.scm"
+MILLDIR="$LOGDIR/squidmill"
+MONTHLY="$MILLDIR/monthly.scm"
+SUMMARY="$MILLDIR/summary.scm"
 
+mkdir -p "$MILLDIR"
 TMPFILE=`mktemp`
 squidmill "$SUMMARY" "$MONTHLY" > "$TMPFILE"
 

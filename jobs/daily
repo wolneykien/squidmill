@@ -1,8 +1,10 @@
 #!/bin/sh
 
 LOGDIR=/var/log/squid
-WEEKLY="$LOGDIR/squidmill/weekly.scm"
+MILLDIR="$LOGDIR/squidmill"
+WEEKLY="$MILLDIR/weekly.scm"
 
+mkdir -p "$MILLDIR"
 TMPFILE=`mktemp`
 if [ -f "$LOGDIR/access.log.1.gz" ]; then
     gunzip -c "$LOGDIR/access.log.1.gz" | \
