@@ -1,0 +1,10 @@
+#!/bin/sh
+
+LOGDIR=/var/log/squid
+WEEKLY="$LOGDIR/squidmill/weekly.scm"
+MONTHLY="$LOGDIR/squidmill/monthly.scm"
+
+TMPFILE=`mktemp`
+squidmill "$MONTHLY" "$WEEKLY" > "$TMPFILE"
+
+mv "$TMPFILE" "$MONTHLY"

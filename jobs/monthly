@@ -1,0 +1,10 @@
+#!/bin/sh
+
+LOGDIR=/var/log/squid
+MONTHLY="$LOGDIR/squidmill/monthly.scm"
+SUMMARY="$LOGDIR/squidmill/summary.scm"
+
+TMPFILE=`mktemp`
+squidmill "$SUMMARY" "$MONTHLY" > "$TMPFILE"
+
+mv "$TMPFILE" "$SUMMARY"
