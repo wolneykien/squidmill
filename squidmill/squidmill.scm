@@ -139,7 +139,7 @@
     (proc (current-input-port)))
    ((file-exists? filename)
     (call-with-input-file filename proc))
-   (else #f)))
+   (else (make-table))))
 
 (define (sum-logs . files)
   (let ((sum (make-table)))
@@ -159,7 +159,8 @@
                           (cons (car entry)
                                 (list->table (cdr entry))))
                         (read port)))
-                  (process-log sum-log port)))))))
+                  (or (process-log sum-log port)
+                      (make-table))))))))
      files)
     sum))
 
