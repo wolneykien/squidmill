@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 1.0
-Release: alt1
+Release: alt2
 
 Source: %name-%version.tar.gz
 Source1: %name-%version-jobs.tar.gz
@@ -42,6 +42,9 @@ install -p -m0755 -D ../%name-%version-jobs/monthly %buildroot%_sysconfdir/cron.
 %_sysconfdir/cron.monthly/squidmill
 
 %changelog
+
+* Mon Apr 20 2009 Paul Wolneykien <manowar@altlinux.ru> 1.0-alt2
+- Using new gsc compiler (new name).
 
 * Mon Apr 20 2009 Paul Wolneykien <manowar@altlinux.ru> 1.0-alt1
 - Initial release.
