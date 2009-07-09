@@ -26,7 +26,7 @@ maintaince are included.
 %setup -b1
 
 %build
-gambsc -link squidmill && \
+gsc -link squidmill && \
 gcc -o squidmill squidmill.c squidmill_.c -lgambc
 
 %install
