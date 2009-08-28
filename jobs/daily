@@ -13,7 +13,7 @@ elif [ -f "$LOGDIR/access.log.1.bz2" ]; then
     bunzip2 -c "$LOGDIR/access.log.1.bz2" | \
 	squidmill "$WEEKLY" - "$LOGDIR/access.log" > "$TMPFILE"
 else
-    squidmill "$WEEKLY" - "$LOGDIR/access.log" > "$TMPFILE"
+    squidmill "$WEEKLY" "$LOGDIR/access.log" > "$TMPFILE"
 fi
 
 mv "$TMPFILE" "$WEEKLY"

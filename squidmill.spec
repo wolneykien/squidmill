@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 1.0
-Release: alt2
+Release: alt3
 
 Source: %name-%version.tar.gz
 Source1: %name-%version-jobs.tar.gz
@@ -42,6 +42,8 @@ install -p -m0755 -D ../%name-%version-jobs/monthly %buildroot%_sysconfdir/cron.
 %_sysconfdir/cron.monthly/squidmill
 
 %changelog
+* Fri Aug 28 2009 Paul Wolneykien <manowar@altlinux.ru> 1.0-alt3
+- Fix stdin reading in the daily squidmill script.
 
 * Mon Apr 20 2009 Paul Wolneykien <manowar@altlinux.ru> 1.0-alt2
 - Using new gsc compiler (new name).
