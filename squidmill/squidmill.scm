@@ -8,16 +8,14 @@
 
 (cond-expand
  ((not string-tokenize)
-  (define (string-tokenize txtval)
+  (define (string-tokenize txtval charset)
     (fold-right (lambda (w tail)
                   (if (null? w)
                       tail
                       (cons (list->string w) tail)))
                 '()
                 (fold-right (lambda (c tail)
-                              (if (or (eq? c #\space)
-                                      (eq? c #\tab)
-                                      (eq? c #\newline))
+                              (if (member c charset)
                                   (if (null? (car tail))
                                       tail
                                       (cons '() tail))
@@ -26,112 +24,34 @@
                             '(())
                             (string->list txtval))))))
 
-(define (false-empty val)
-  (and (not (equal? "-" val)) val))
+(define (extract-domain uri)
+  (if (and uri (> (string-length uri) 0))
+    (let ((uri-list (string-tokenize uri '(#\/))))
+      (if (and (>= (length uri-list) 2)
+               (eq? #\: (string-ref (car uri-list)
+                                    (- (string-length (car uri-list)) 1))))
+        (cadr uri-list)
+        uri))))
 
-(define (false-empty-number val)
-  (and (not (equal? "-" val)) (string->number val)))
+(define (add-event db-fold-left timestamp elapsed client action/code size method uri ident hierarchy/from content)
+  (db-fold-left values #f
+    (string-append
+      "insert or ignore into access_log values "
+      "(" timestamp ", '" ident "', '" (extract-domain uri) "', "
+          size ", " elapsed ")")))
 
-;; (define (report-log-line tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
-;;   (format #t "Timestamp: ~a~%" timestamp)
-;;   (format #t "Elapsed: ~a~%" elapsed)
-;;   (format #t "Client: ~a~%" client)
-;;   (format #t "Action/Code: ~a~%" action/code)
-;;   (format #t "Size: ~a~%" size)
-;;   (format #t "Method: ~a~%" method)
-;;   (format #t "URI: ~a~%" uri)
-;;   (format #t "Ident: ~a~%" (false-empty ident))
-;;   (format #t "Hierarch/From: ~a~%" hierarchy/from)
-;;   (format #t "Content: ~a~%" content)
-;;   (newline))
-
-;; (define (report-uri tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
-;;   (format #t "URI: ~a~%" uri))
-
-(define (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (list
-    (cons 'timestamp (false-empty-number timestamp))
-    (cons 'elapsed (false-empty-number elapsed))
-    (cons 'client client)
-    (cons 'action/code action/code)
-    (cons 'size (false-empty-number size))
-    (cons 'method method)
-    (cons 'uri uri)
-    (cons 'ident (false-empty ident))
-    (cons 'hierarchy/from hierarchy/from)
-    (cons 'content content)))
-
-;; (define (list-report tail timestamp elapsed client action/code size method uri ident hierarchy/from content)
-;;   (write (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))
-;;   (newline)
-;;   tail)
-
-(define (table-update! key update-proc new-tbl old-tbl)
-  (let ((new-val (table-ref new-tbl key #f))
-        (old-val (table-ref old-tbl key #f)))
-    (cond
-     ((not new-val) #f)
-     ((not old-val)
-      (table-set! old-tbl key new-val)
-      #t)
-     (else
-      (let ((val (update-proc new-val old-val)))
-        (and (not (equal? val old-val))
-             (table-set! old-tbl key val)
-             #t))))))
-
-(define (sum-update! vals sum)
-  (if (table-update! 'timestamp max vals sum)
-      (begin
-        (table-update! 'elapsed + vals sum)
-        (table-update! 'size + vals sum)
-        (table-update! 'client (lambda (a b) a) vals sum)
-        (table-update! 'action/code (lambda (a b) a) vals sum)
-        (table-update! 'method (lambda (a b) a) vals sum)
-        (table-update! 'uri (lambda (a b) a) vals sum)
-        (table-update! 'ident (lambda (a b) a) vals sum)
-        (table-update! 'hierarchy/from (lambda (a b) a) vals sum)
-        (table-update! 'content (lambda (a b) a) vals sum))))
-
-;; (define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-;;   (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content))))
-;;     (cond
-;;      ((table? sum)
-;;       (table-update! 'elapsed + vals sum)
-;;       (table-update! 'size + vals sum)
-;;       (table-update! 'timestamp min vals sum)
-;;       sum)
-;;      (else vals))))
-
-(define (personal-sum-update! id vals sum)
-  (cond
-   ((table-ref sum id #f) =>
-    (lambda (psum)
-      (sum-update! vals psum)))
-   (else
-    (table-set! sum id vals))))
-
-(define (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (let ((vals (list->table (log->list timestamp elapsed client action/code size method uri ident hierarchy/from content)))
-        (id (or (false-empty ident)
-                (false-empty client))))
-    (cond
-     ((table? sum)
-      (personal-sum-update! id vals sum)
-      sum)
-     (else
-      (list->table (list (cons id vals)))))))
-
-(define (sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-  (personal-sum-log (personal-sum-log sum timestamp elapsed client action/code size method uri ident hierarchy/from content)
-                    timestamp elapsed #f action/code size method uri #f hierarchy/from content))
+(define (init-db db-fold-left)
+  (db-fold-left values #f
+    "create table if not exists access_log (timestamp double, ident text, uri text, size integer, elapsed long)")
+  (db-fold-left values #f
+    "create unique index if not exists access_log_timestamp_ident on access_log (timestamp desc, ident asc)"))
 
 (define (process-log proc port)
-  (let loop ((tail #f))
-    (let ((ln (read-line port)))
-      (if (not (eof-object? ln))
-          (loop (apply proc tail (string-tokenize ln)))
-          tail))))
+  (let loop ((ln (read-line port)))
+    (if (not (eof-object? ln))
+      (begin
+        (apply proc (string-tokenize ln '(#\space #\tab #\newline)))
+        (loop (read-line port))))))
 
 (define (call-with-input filename proc)
   (cond
@@ -141,31 +61,55 @@
     (call-with-input-file filename proc))
    (else (make-table))))
 
-(define (sum-logs . files)
-  (let ((sum (make-table)))
-    (for-each
-     (lambda (file)
-       (table-for-each
-        (lambda (id vals)
-          (personal-sum-update! id vals sum))
-        (let* ((l (string-length file))
-               (t (and (>= l 4)
-                       (substring file (- l 4) l))))
-          (call-with-input file
-            (lambda (port)
-              (if (and t (equal? t ".scm"))
-                  (list->table
-                   (map (lambda (entry)
-                          (cons (car entry)
-                                (list->table (cdr entry))))
-                        (read port)))
-                  (or (process-log sum-log port)
-                      (make-table))))))))
-     files)
-    sum))
+(define (make-add-event db-fold-left)
+  (let ((last-timestamp "")
+        (last-ident "")
+        (tail 0))
+    (lambda (timestamp elapsed client action/code size method uri ident . other-fields)
+      (if (and (equal? ident last-ident)
+               (equal? timestamp last-timestamp))
+        (begin
+          (set! tail (+ tail 1))
+          (apply add-event
+                 db-fold-left
+                 (string-append timestamp (number->string tail))
+                 elapsed client action/code size method uri ident
+                 other-fields))
+        (begin
+          (set! tail 0)
+             (apply add-event db-fold-left timestamp elapsed client
+                    action/code size method uri ident other-fields)))
+      (set! last-timestamp timestamp)
+      (set! last-ident ident))))
 
-(write (map (lambda (entry)
-              (cons (car entry)
-                    (table->list (cdr entry))))
-            (table->list (apply sum-logs (cdr (command-line))))))
-(newline)
+(define (add-logs db-fold-left . files)
+  (for-each
+    (lambda (file)
+      (call-with-input file
+        (lambda (port)
+          (process-log (make-add-event db-fold-left) port))))
+     files))
+
+(define (main . command-line)
+  (let scan-args ((input-files '())
+             (db-name "squidmill.db")
+             (args command-line))
+    (if (null? args)
+        (call-with-values
+          (lambda () (sqlite3 db-name))
+          (lambda (db-fold-left db-close)
+            (with-exception-catcher
+              (lambda (e)
+                (db-close)
+                (raise e))
+              (lambda ()
+                (init-db db-fold-left)
+                (apply add-logs db-fold-left input-files)
+                (db-close)))))
+        (if (and (> (string-length (car args)) 1)
+                 (eq? (string-ref (car args) 0) #\-))
+            (case (string->symbol (car args))
+              ((-d) (scan-args (input-files (cadr args) (cddr args))))
+              (else (error "Unknown option: " (car args))))
+            (scan-args (append input-files (list (car args)))
+                       db-name (cdr args))))))
