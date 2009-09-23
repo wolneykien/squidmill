@@ -42,15 +42,18 @@
 (define (bulk-insert db-fold-left bulk)
   (db-fold-left values #f
     (string-append
-      "insert or replace into access_log" " "
+      "insert or ignore into access_log" " "
       (string-join bulk " union "))))
+
+(define (sqlquote txtval)
+  (string-append "'" txtval "'"))
 
 (define (add-event bulk timestamp elapsed client action/code size method uri ident hierarchy/from content)
   (append bulk
           (list (string-append "select" " "
                   (string-join (list timestamp
-                                     ident
-                                     (extract-domain uri)
+                                     (sqlquote ident)
+                                     (sqlquote (extract-domain uri))
                                      size
                                      elapsed)
                                ", ")))))
@@ -65,9 +68,9 @@
   (let loop ((ln (read-line port))
              (bulk '()))
     (if (not (eof-object? ln))
-      (begin
-        (loop (read-line port)
-              (apply proc bulk (string-tokenize ln '(#\space #\tab #\newline))))))))
+      (loop (read-line port)
+            (apply proc bulk (string-tokenize ln '(#\space #\tab #\newline))))
+      bulk)))
 
 (define (call-with-input filename proc)
   (cond
@@ -113,14 +116,18 @@
     (lambda (file)
       (call-with-input file
         (lambda (port)
-          (process-log (make-add-event db-fold-left bulk-size) port))))
+          (let ((bulk (process-log (make-add-event db-fold-left
+                                                   bulk-size)
+                                   port)))
+            (if (not (null? bulk))
+              (bulk-insert db-fold-left bulk))))))
      files))
 
 (define (main . command-line)
   (let scan-args ((input-files '())
-             (db-name "squidmill.db")
-             (bulk-size 10)
-             (args command-line))
+                  (db-name "squidmill.db")
+                  (bulk-size 256)
+                  (args command-line))
     (if (null? args)
         (call-with-values
           (lambda () (sqlite3 db-name))
@@ -136,7 +143,11 @@
         (if (and (> (string-length (car args)) 1)
                  (eq? (string-ref (car args) 0) #\-))
             (case (string->symbol (car args))
-              ((-d) (scan-args (input-files (cadr args) (cddr args))))
+              ((-d) (scan-args input-files (cadr args) bulk-size
+                               (cddr args)))
+              ((-B) (scan-args input-files db-name
+                               (string->number (cadr args))
+                               (cddr args)))
               (else (error "Unknown option: " (car args))))
             (scan-args (append input-files (list (car args)))
-                       db-name (cdr args))))))
+                       db-name bulk-size (cdr args))))))
