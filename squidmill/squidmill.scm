@@ -111,6 +111,31 @@
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
+(define (report-on-users db-fold-left stime etime cmp threshold limit)
+  (let ((select-stm
+          (string-append
+            "select strftime('d%.%m.%Y %H:%M:%S', min(timestamp)), "
+                   "ident, sum(size), sum(elapsed) from"))
+        (where-stm
+          (string-append
+            "where timestamp > strftime('%s', '" stime "', 'utc') and "
+                  "timestamp <= strftime('%s', '" etime "', 'utc') and "
+                  "size " cmp " " threshold))
+        (group-stm "group by ident"))
+    (db-fold-left
+      (lambda (result timestamp ident uri size elapsed)
+        (values (< (length result) limit)
+                (append result (list timestamp ident uri size elapsed))))
+      '()
+      (string-append
+        select-stm " access_log " where-stm " " group-stm
+        " union "
+        select-stm " hourly_log " where-stm " " group-stm
+        " union "
+        select-stm " monthly_log " where-stm " " group-stm " "
+        "order by 3 desc "
+        "limit " limit))))
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
