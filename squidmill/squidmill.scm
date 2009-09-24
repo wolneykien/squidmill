@@ -58,11 +58,54 @@
                                      elapsed)
                                ", ")))))
 
+(define (init-table db-fold-left table-name)
+  (db-fold-left values #f
+    (string-append
+      "create table if not exists " table-name " "
+      "(timestamp double, ident text, uri text, size integer, "
+       "elapsed long)"))
+  (db-fold-left values #f
+    (string-append
+      "create unique index if not exists "
+      table-name "_timestamp_ident "
+      "on " table-name " (timestamp desc, ident asc)")))
+
 (define (init-db db-fold-left)
-  (db-fold-left values #f
-    "create table if not exists access_log (timestamp double, ident text, uri text, size integer, elapsed long)")
-  (db-fold-left values #f
-    "create unique index if not exists access_log_timestamp_ident on access_log (timestamp desc, ident asc)"))
+  (init-table db-fold-left "access_log")
+  (init-table db-fold-left "hourly_log")
+  (init-table db-fold-left "daily_log")
+  (init-table db-fold-left "monthly_log"))
+
+(define (round-log db-fold-left from-table to-table age-note time-template)
+  (db-fold-left values #f "begin exclusive transaction")
+  (let ((threshold-condition
+          (string-append "datetime(timestamp, 'unixepoch') <= "
+                         "datetime('now', '-" age-note))))
+    (db-fold-left values #f
+      (string-append
+        "insert or replace into " to-table " "
+        "select min(timestamp), ident, uri, sum(size), sum(elapsed) "
+        "from " from-table " "
+        "where " threshold-condition " "
+        "group by strftime('" time-template "', timestamp, 'unixepoch'), "
+        "ident, uri "
+        "order by 1 desc"))
+    (db-fold-left values #f
+      (string-append "delete from access_log where "
+                     threshold-condition)))
+  (db-fold-left values #f "commit transaction"))
+
+(define (log->hourly db-fold-left)
+  (round-data db-fold-left "access_log" "hourly_log"
+              "1 day" "%Y-%m-%d %H"))
+
+(define (hourly->daily db-fold-left)
+  (round-data db-fold-left "hourly_log" "daily_log"
+              "1 month" "%Y-%m-%d"))
+
+(define (daily->monthly db-fold-left)
+  (round-data db-fold-left "daily_log" "monthly_log"
+              "1 year" "%Y-%m"))
 
 (define (process-log proc port)
   (let loop ((ln (read-line port))
