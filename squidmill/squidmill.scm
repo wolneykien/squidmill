@@ -79,8 +79,7 @@
 (define (round-log db-fold-left from-table to-table age-note time-template)
   (db-fold-left values #f "begin exclusive transaction")
   (let ((threshold-condition
-          (string-append "datetime(timestamp, 'unixepoch') <= "
-                         "datetime('now', '-" age-note))))
+          (string-append "timestamp <= strftime('%s', 'now', '-" age-note))))
     (db-fold-left values #f
       (string-append
         "insert or replace into " to-table " "
@@ -96,16 +95,21 @@
   (db-fold-left values #f "commit transaction"))
 
 (define (log->hourly db-fold-left)
-  (round-data db-fold-left "access_log" "hourly_log"
+  (round-log db-fold-left "access_log" "hourly_log"
               "1 day" "%Y-%m-%d %H"))
 
 (define (hourly->daily db-fold-left)
-  (round-data db-fold-left "hourly_log" "daily_log"
+  (round-log db-fold-left "hourly_log" "daily_log"
               "1 month" "%Y-%m-%d"))
 
 (define (daily->monthly db-fold-left)
-  (round-data db-fold-left "daily_log" "monthly_log"
+  (round-log db-fold-left "daily_log" "monthly_log"
               "1 year" "%Y-%m"))
+
+(define (round-all-logs db-fold-left)
+  (log->hourly db-fold-left)
+  (hourly->daily db-fold-left)
+  (daily->monthly db-fold-left))
 
 (define (process-log proc port)
   (let loop ((ln (read-line port))
