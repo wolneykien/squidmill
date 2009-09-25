@@ -159,7 +159,7 @@
     (string-append "limit " (number->string limit))
     ""))
 
-(define (report-on-users db-fold-left report-proc seed
+(define (report-on-users db-fold-left out-proc seed
                          stime etime minsize maxsize ident-pat limit)
   (let ((select-stm
           (string-append
@@ -168,13 +168,13 @@
         (where-stm (make-where-stm stime etime minsize maxsize
                                    ident-pat #f))
         (group-stm "group by ident"))
-    (db-fold-left report-proc seed
+    (db-fold-left out-proc seed
       (string-append
         (make-union-select select-stm where-stm group-stm)
         "order by 3 desc, 2 asc, 1 desc "
         (make-limit-stm limit)))))
 
-(define (report-on-uris db-fold-left report-proc seed
+(define (report-on-uris db-fold-left out-proc seed
                         stime etime minsize maxsize ident-pat limit)
   (let ((select-stm
           (string-append
@@ -183,29 +183,29 @@
         (where-stm (make-where-stm stime etime minsize maxsize #f
                                    ident-pat))
         (group-stm "group by uri"))
-    (db-fold-left report-proc seed
+    (db-fold-left out-proc seed
       (string-append
         (make-union-select select-stm where-stm group-stm)
         "order by 3 desc, 2 asc, 1 desc "
         (make-limit-stm limit)))))
 
-(define (make-report-proc report-proc seed limit)
+(define (make-out-proc out-proc seed limit)
   (lambda (seed . cols)
     (call-with-values
       (lambda () seed)
-      (lambda (report-seed count more)
+      (lambda (out-seed count more)
         (if (<= count limit)
           (values #t
-                 (values (apply report-proc report-seed cols)
+                 (values (apply out-proc out-seed cols)
                          (+ count 1)
                          #f))
-          (values #f (values report-seed count #t)))))))
+          (values #f (values out-seed count #t)))))))
 
-(define (report db-fold-left report-proc seed report-selector limit
+(define (report db-fold-left out-proc seed report-selector limit
                 . query-parameters)
   (apply report-selector
          db-fold-left
-         (make-report-proc report-proc limit)
+         (make-out-proc out-proc limit)
          (values seed 0 #f)
          query-parameters
          (and limit (+ limit 1))))
