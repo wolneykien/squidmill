@@ -154,6 +154,11 @@
                          (string-join tail-smts " ")))
     " union "))
 
+(define (make-limit-stm limit)
+  (if (and limit (>= limit 0))
+    (string-append "limit " (number->string limit))
+    ""))
+
 (define (report-on-users db-fold-left report-proc seed
                          stime etime minsize maxsize ident-pat limit)
   (let ((select-stm
@@ -167,7 +172,7 @@
       (string-append
         (make-union-select select-stm where-stm group-stm)
         "order by 3 desc, 2 asc, 1 desc "
-        "limit " limit))))
+        (make-limit-stm limit)))))
 
 (define (report-on-uris db-fold-left report-proc seed
                         stime etime minsize maxsize ident-pat limit)
@@ -182,7 +187,7 @@
       (string-append
         (make-union-select select-stm where-stm group-stm)
         "order by 3 desc, 2 asc, 1 desc "
-        "limit " limit))))
+        (make-limit-stm limit)))))
 
 (define (make-report-proc report-proc seed limit)
   (lambda (seed . cols)
