@@ -210,6 +210,12 @@
          query-parameters
          (and limit (+ limit 1))))
 
+(define (s-report-output seed timestamp id size elapsed)
+  (write (list timestamp id (string->number size)
+               (string->number elapsed)))
+  (newline)
+  seed)
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
