@@ -150,8 +150,8 @@
                          (string-join tail-smts " ")))
     " union "))
 
-(define (report-on-users db-fold-left stime etime minsize maxsize
-                         ident-pat limit)
+(define (report-on-users db-fold-left report-proc seed
+                         stime etime minsize maxsize ident-pat limit)
   (let ((select-stm
           (string-append
             "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
@@ -159,11 +159,7 @@
         (where-stm (make-where-stm stime etime minsize maxsize
                                    ident-pat))
         (group-stm "group by ident"))
-    (db-fold-left
-      (lambda (result timestamp ident size elapsed)
-        (values (< (length result) limit)
-                (append result (list timestamp ident size elapsed))))
-      '()
+    (db-fold-left report-proc seed
       (string-append
         (make-union-select select-stm where-stm group-stm)
         "order by 3 desc, 2 asc, 1 desc "
