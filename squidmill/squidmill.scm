@@ -180,6 +180,18 @@
         "order by 3 desc, 2 asc, 1 desc "
         "limit " limit))))
 
+(define (make-report-proc report-proc seed limit)
+  (lambda (seed . cols)
+    (call-with-values
+      (lambda () seed)
+      (lambda (report-seed count more)
+        (if (<= count limit)
+          (values #t
+                 (values (apply report-proc report-seed cols)
+                         (+ count 1)
+                         #f))
+          (values #f (values report-seed count #t)))))))
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
