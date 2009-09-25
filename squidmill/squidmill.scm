@@ -111,7 +111,7 @@
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
-(define (make-where-stm stime etime minsize maxsize ident-pat)
+(define (make-where-stm stime etime minsize maxsize ident-pat uri-pat)
   (string-append
     "where "
     (string-join
@@ -135,6 +135,10 @@
          (if (and ident-pat (> (string-length ident-pat) 0))
            (list (string-join "ident is like '%" ident-pat
                               "%'"))
+           '())
+         (if (and uri-pat (> (string-length uri-pat) 0))
+           (list (string-join "uri is like '%" uri-pat
+                              "%'"))
            '()))
        " and ")))
 
@@ -157,7 +161,7 @@
             "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
                    "ident, sum(size), sum(elapsed) from"))
         (where-stm (make-where-stm stime etime minsize maxsize
-                                   ident-pat))
+                                   ident-pat #f))
         (group-stm "group by ident"))
     (db-fold-left report-proc seed
       (string-append
@@ -171,7 +175,7 @@
           (string-append
             "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
                    "uri, sum(size), sum(elapsed) from"))
-        (where-stm (make-where-stm stime etime minsize maxsize
+        (where-stm (make-where-stm stime etime minsize maxsize #f
                                    ident-pat))
         (group-stm "group by uri"))
     (db-fold-left report-proc seed
