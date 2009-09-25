@@ -192,6 +192,15 @@
                          #f))
           (values #f (values report-seed count #t)))))))
 
+(define (report db-fold-left report-proc seed report-selector limit
+                . query-parameters)
+  (apply report-selector
+         db-fold-left
+         (make-report-proc report-proc limit)
+         (values seed 0 #f)
+         query-parameters
+         (and limit (+ limit 1))))
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
