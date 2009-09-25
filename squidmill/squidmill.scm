@@ -279,6 +279,10 @@
               (bulk-insert db-fold-left bulk))))))
      files))
 
+(define (opt-key? arg)
+  (and (> (string-length (car args)) 1)
+       (eq? (string-ref (car args) 0) #\-)))
+
 (define (scan-args . command-line)
   (let ((input-files '())
         (db-name "squidmill.db")
@@ -292,8 +296,7 @@
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name bulk-size) input-files)
-        (if (and (> (string-length (car args)) 1)
-                 (eq? (string-ref (car args) 0) #\-))
+        (if (opt-key? (car args))
           (case (string->symbol (car args))
             ((-d) (set! db-name (cadr args))
                   (scan-next (cddr args)))
@@ -307,10 +310,22 @@
                   (scan-next (cddr args)))
             ((-M) (set! maxsize (string->number (cadr args)))
                   (scan-next (cddr args)))
-            ((-i) (set! ident-pat (cadr args))
-                  (scan-next (cddr args)))
-            ((-u) (set! uri-pat (cadr args))
-                  (scan-next (cddr args)))
+            ((-i) (if (or (null? (cdr args))
+                          (opt-key? (cadr args)))
+                    (begin
+                      (set! ident-pat "%")
+                      (scan-next (cdr args)))
+                    (begin
+                      (set! ident-pat (cadr args))
+                      (scan-next (cddr args)))))
+            ((-u) (if (or (null? (cdr args))
+                          (opt-key? (cadr args)))
+                    (begin
+                      (set! uri-pat "%")
+                      (scan-next (cdr args)))
+                    (begin
+                      (set! uri-pat (cadr args))
+                      (scan-next (cddr args)))))
             (else (usage)
                   (exit 0)))
           (begin
