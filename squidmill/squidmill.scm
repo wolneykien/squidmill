@@ -111,29 +111,62 @@
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
-(define (report-on-users db-fold-left stime etime cmp threshold limit)
+(define (make-where-stm stime etime minsize maxsize ident-pat)
+  (string-append
+    "where "
+    (string-join
+       (append '()
+         (if stime
+           (list (string-join "timestamp > strftime('%s', '"
+                              stime "', 'utc')"))
+           '())
+         (if etime
+           (list (string-join "timestamp <= strftime('%s', '"
+                              etime "', 'utc')"))
+           '())
+         (if minsize
+           (list (string-join "sum(size) > "
+                              (number->string minsize)))
+           '())
+         (if maxsize
+           (list (string-join "sum(size) <= "
+                              (number->string maxsize)))
+           '())
+         (if (and ident-pat (> (string-length ident-pat) 0))
+           (list (string-join "ident is like '%" ident-pat
+                              "%'"))
+           '()))
+       " and ")))
+
+(define (make-union-select select-stm . tail-smts)
+  (string-join
+    (list (string-append select-stm " access_log "
+                         (string-join tail-smts " "))
+          (string-append select-stm " hourly_log "
+                         (string-join tail-smts " "))
+          (string-append select-stm " daily_log "
+                         (string-join tail-smts " "))
+          (string-append select-stm " monthly_log "
+                         (string-join tail-smts " ")))
+    " union "))
+
+(define (report-on-users db-fold-left stime etime minsize maxsize
+                         ident-pat limit)
   (let ((select-stm
           (string-append
-            "select strftime('d%.%m.%Y %H:%M:%S', min(timestamp)), "
+            "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
                    "ident, sum(size), sum(elapsed) from"))
-        (where-stm
-          (string-append
-            "where timestamp > strftime('%s', '" stime "', 'utc') and "
-                  "timestamp <= strftime('%s', '" etime "', 'utc') and "
-                  "size " cmp " " threshold))
+        (where-stm (make-where-stm stime etime minsize maxsize
+                                   ident-pat))
         (group-stm "group by ident"))
     (db-fold-left
-      (lambda (result timestamp ident uri size elapsed)
+      (lambda (result timestamp ident size elapsed)
         (values (< (length result) limit)
-                (append result (list timestamp ident uri size elapsed))))
+                (append result (list timestamp ident size elapsed))))
       '()
       (string-append
-        select-stm " access_log " where-stm " " group-stm
-        " union "
-        select-stm " hourly_log " where-stm " " group-stm
-        " union "
-        select-stm " monthly_log " where-stm " " group-stm " "
-        "order by 3 desc "
+        (make-union-select select-stm where-stm group-stm)
+        "order by 3 desc, 2 asc, 1 desc "
         "limit " limit))))
 
 (define (process-log proc port)
