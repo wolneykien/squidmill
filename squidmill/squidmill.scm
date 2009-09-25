@@ -232,12 +232,9 @@
       bulk)))
 
 (define (call-with-input filename proc)
-  (cond
-   ((equal? filename "-")
-    (proc (current-input-port)))
-   ((file-exists? filename)
-    (call-with-input-file filename proc))
-   (else (make-table))))
+  (if (equal? filename "-")
+    (proc (current-input-port))
+    (call-with-input-file filename proc)))
 
 (define (make-add-event db-fold-left bulk-size)
   (let ((last-timestamp "")
