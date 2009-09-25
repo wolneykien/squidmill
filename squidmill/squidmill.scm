@@ -159,35 +159,30 @@
     (string-append "limit " (number->string limit))
     ""))
 
-(define (report-on-users db-fold-left out-proc seed
-                         stime etime minsize maxsize ident-pat limit)
-  (let ((select-stm
-          (string-append
-            "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
-                   "ident, sum(size), sum(elapsed) from"))
-        (where-stm (make-where-stm stime etime minsize maxsize
-                                   ident-pat #f))
-        (group-stm "group by ident"))
-    (db-fold-left out-proc seed
-      (string-append
-        (make-union-select select-stm where-stm group-stm)
-        "order by 3 desc, 2 asc, 1 desc "
-        (make-limit-stm limit)))))
+(define (make-select-stm stime etime minsize maxsize ident-pat uri-pat)
+  (string-append
+    "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'),"
+    (and ident-pat " ident,")
+    (and uri-pat " uri,")
+    " sum(size), sum(elapsed)"
+    " from"))
 
-(define (report-on-uris db-fold-left out-proc seed
-                        stime etime minsize maxsize ident-pat limit)
-  (let ((select-stm
-          (string-append
-            "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'), "
-                   "uri, sum(size), sum(elapsed) from"))
-        (where-stm (make-where-stm stime etime minsize maxsize #f
-                                   ident-pat))
-        (group-stm "group by uri"))
-    (db-fold-left out-proc seed
-      (string-append
-        (make-union-select select-stm where-stm group-stm)
-        "order by 3 desc, 2 asc, 1 desc "
-        (make-limit-stm limit)))))
+(define (make-group-stm ident-pat uri-pat)
+  (string-append
+    (if (or ident-pat uri-pat) "group by " "")
+    (string-join
+      (append
+        (if ident-pat '("ident") '())
+        (if uri-pat '("uri") '()))
+      ", ")))
+
+(define (make-order-stm ident-pat uri-pat)
+  (string-join
+    (append
+      '("order by 1 desc")
+      (if ident-pat '("ident asc") '())
+      (if uri-pat '("uri asc") '()))
+    ", "))
 
 (define (make-out-proc out-proc seed limit)
   (lambda (seed . cols)
@@ -201,14 +196,23 @@
                          #f))
           (values #f (values out-seed count #t)))))))
 
-(define (report db-fold-left out-proc seed report-selector limit
-                . query-parameters)
-  (apply report-selector
-         db-fold-left
-         (make-out-proc out-proc limit)
-         (values seed 0 #f)
-         query-parameters
-         (and limit (+ limit 1))))
+(define (report db-fold-left out-proc seed
+                stime etime minsize maxsize ident-pat uri-pat
+                limit)
+  (let ((select-stm (make-select-stm stime etime minsize maxsize
+                                     ident-pat uri-pat))
+        (where-stm (make-where-stm stime etime minsize maxsize
+                                   ident-pat uri-pat))
+        (group-stm (make-group-stm ident-pat uri-pat))
+        (order-stm (make-order-stm ident-pat uri-pat))
+        (limit-stm (make-limit-stm (and limit (+ limit 1)))))
+    (db-fold-left
+      (make-out-proc out-proc limit)
+      (values seed 0 #f)
+      (string-join
+        (list (make-union-select select-stm where-stm group-stm)
+              group-stm order-stm limit-stm)
+        " "))))
 
 (define (s-report-output seed timestamp id size elapsed)
   (write (list timestamp id (string->number size)
