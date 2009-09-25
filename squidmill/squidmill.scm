@@ -216,6 +216,13 @@
   (newline)
   seed)
 
+(define (make-text-report-output sep)
+  (lambda (seed timestamp id size elapsed)
+    (string-join
+      (list timestamp id (string->number size)
+            (string->number elapsed))
+      sep)))
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
