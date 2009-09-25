@@ -20,15 +20,18 @@
                           '(())
                           (string->list txtval))))
 
-(define (string-join lst sep)
-  (let loop ((text "")
-             (lst lst))
-    (if (null? lst)
-      text
-      (loop (if (> (string-length text) 0)
-              (string-append text sep (car lst))
-              (car lst))
-            (cdr lst)))))
+(define (make-string-join sep)
+  (lambda lst
+    (let loop ((text "")
+               (lst lst))
+      (if (null? lst)
+        text
+        (loop (if (car lst)
+                (if (> (string-length text) 0)
+                  (string-append text sep (car lst))
+                  (car lst))
+                text)
+              (cdr lst))))))
 
 (define (extract-domain uri)
   (if (and uri (> (string-length uri) 0))
@@ -43,7 +46,7 @@
   (db-fold-left values #f
     (string-append
       "insert or ignore into access_log" " "
-      (string-join bulk " union "))))
+      (apply (make-string-join " union ") bulk))))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
@@ -51,12 +54,12 @@
 (define (add-event bulk timestamp elapsed client action/code size method uri ident hierarchy/from content)
   (append bulk
           (list (string-append "select" " "
-                  (string-join (list timestamp
-                                     (sqlquote ident)
-                                     (sqlquote (extract-domain uri))
-                                     size
-                                     elapsed)
-                               ", ")))))
+                  ((make-string-join ", ")
+                     timestamp
+                     (sqlquote ident)
+                     (sqlquote (extract-domain uri))
+                     size
+                     elapsed)))))
 
 (define (init-table db-fold-left table-name)
   (db-fold-left values #f
@@ -114,45 +117,32 @@
 (define (make-where-stm stime etime minsize maxsize ident-pat uri-pat)
   (string-append
     "where "
-    (string-join
-       (append '()
-         (if stime
-           (list (string-join "timestamp > strftime('%s', '"
-                              stime "', 'utc')"))
-           '())
-         (if etime
-           (list (string-join "timestamp <= strftime('%s', '"
-                              etime "', 'utc')"))
-           '())
-         (if minsize
-           (list (string-join "sum(size) > "
-                              (number->string minsize)))
-           '())
-         (if maxsize
-           (list (string-join "sum(size) <= "
-                              (number->string maxsize)))
-           '())
-         (if (and ident-pat (> (string-length ident-pat) 0))
-           (list (string-join "ident is like '%" ident-pat
-                              "%'"))
-           '())
-         (if (and uri-pat (> (string-length uri-pat) 0))
-           (list (string-join "uri is like '%" uri-pat
-                              "%'"))
-           '()))
-       " and ")))
+    ((make-string-join " and ")
+       (and stime
+           (string-append "timestamp > strftime('%s', '"
+                          stime "', 'utc')"))
+       (and etime
+            (string-append "timestamp <= strftime('%s', '"
+                           etime "', 'utc')"))
+       (and minsize
+            (string-append "sum(size) > " (number->string minsize)))
+       (and maxsize
+            (string-append "sum(size) <= " (number->string maxsize)))
+       (and ident-pat (> (string-length ident-pat) 0)
+            (string-append "ident is like '%" ident-pat "%'"))
+       (and uri-pat (> (string-length uri-pat) 0)
+            (string-append "uri is like '%" uri-pat "%'")))))
 
 (define (make-union-select select-stm . tail-smts)
-  (string-join
-    (list (string-append select-stm " access_log "
-                         (string-join tail-smts " "))
-          (string-append select-stm " hourly_log "
-                         (string-join tail-smts " "))
-          (string-append select-stm " daily_log "
-                         (string-join tail-smts " "))
-          (string-append select-stm " monthly_log "
-                         (string-join tail-smts " ")))
-    " union "))
+  ((make-string-join " union ")
+    (string-append select-stm " access_log "
+                   (apply (make-string-join " ") tail-smts)))
+    (string-append select-stm " hourly_log "
+                   (apply (make-string-join " ") tail-smts))
+    (string-append select-stm " daily_log "
+                   (apply (make-string-join " ") tail-smts))
+    (string-append select-stm " monthly_log "
+                   (apply (make-string-join " ") tail-smts)))
 
 (define (make-limit-stm limit)
   (if (and limit (>= limit 0))
@@ -170,19 +160,15 @@
 (define (make-group-stm ident-pat uri-pat)
   (string-append
     (if (or ident-pat uri-pat) "group by " "")
-    (string-join
-      (append
-        (if ident-pat '("ident") '())
-        (if uri-pat '("uri") '()))
-      ", ")))
+    ((make-string-join ", ")
+       (and ident-pat "ident")
+       (and uri-pat "uri"))))
 
 (define (make-order-stm ident-pat uri-pat)
-  (string-join
-    (append
-      '("order by 1 desc")
-      (if ident-pat '("ident asc") '())
-      (if uri-pat '("uri asc") '()))
-    ", "))
+  ((make-string-join ", ")
+     "order by 1 desc"
+     (and ident-pat "ident asc")
+     (and uri-pat "uri asc")))
 
 (define (make-out-proc out-proc seed limit)
   (lambda (seed . cols)
@@ -209,10 +195,9 @@
     (db-fold-left
       (make-out-proc out-proc limit)
       (values seed 0 #f)
-      (string-join
-        (list (make-union-select select-stm where-stm group-stm)
-              group-stm order-stm limit-stm)
-        " "))))
+      ((make-string-join " ")
+         (make-union-select select-stm where-stm group-stm)
+         group-stm order-stm limit-stm))))
 
 (define (s-report-output seed timestamp id size elapsed)
   (write (list timestamp id (string->number size)
@@ -222,10 +207,8 @@
 
 (define (make-text-report-output sep)
   (lambda (seed timestamp id size elapsed)
-    (string-join
-      (list timestamp id (string->number size)
-            (string->number elapsed))
-      sep)))
+    ((make-string-join sep) timestamp id (string->number size)
+                            (string->number elapsed))))
 
 (define (process-log proc port)
   (let loop ((ln (read-line port))
