@@ -324,31 +324,16 @@
             (set! input-files (append input-files (car args)))
             (scan-next (cdr args))))))))
 
-(define (main . command-line)
-  (let scan-args ((input-files '())
-                  (db-name "squidmill.db")
-                  (bulk-size 256)
-                  (args command-line))
-    (if (null? args)
-        (call-with-values
-          (lambda () (sqlite3 db-name))
-          (lambda (db-fold-left db-close)
-            (with-exception-catcher
-              (lambda (e)
-                (db-close)
-                (raise e))
-              (lambda ()
-                (init-db db-fold-left)
-                (apply add-logs db-fold-left bulk-size input-files)
-                (db-close)))))
-        (if (and (> (string-length (car args)) 1)
-                 (eq? (string-ref (car args) 0) #\-))
-            (case (string->symbol (car args))
-              ((-d) (scan-args input-files (cadr args) bulk-size
-                               (cddr args)))
-              ((-B) (scan-args input-files db-name
-                               (string->number (cadr args))
-                               (cddr args)))
-              (else (error "Unknown option: " (car args))))
-            (scan-args (append input-files (list (car args)))
-                       db-name bulk-size (cdr args))))))
+(define (main db-name bulk-size sdate edate ident-pat
+              uri-pat minsize maxsize limit)
+  (call-with-values
+    (lambda () (sqlite3 db-name))
+    (lambda (db-fold-left db-close)
+      (with-exception-catcher
+        (lambda (e)
+          (db-close)
+          (raise e))
+        (lambda ()
+          (init-db db-fold-left)
+          (apply add-logs db-fold-left bulk-size input-files)
+          (db-close))))))
