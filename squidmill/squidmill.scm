@@ -123,10 +123,10 @@
       ((make-string-join " and ")
          (and stime
              (string-append "timestamp > strftime('%s', '"
-                            stime "', 'unixepoch', 'utc')"))
+                            stime "', 'utc')"))
          (and etime
               (string-append "timestamp <= strftime('%s', '"
-                             etime "', 'unixepoch', 'utc')"))
+                             etime "', 'utc')"))
          (and minsize
               (string-append "sum(size) > " (number->string minsize)))
          (and maxsize
