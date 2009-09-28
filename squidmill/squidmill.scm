@@ -204,10 +204,9 @@
          order-stm limit-stm))))
 
 (define (s-report-output seed timestamp size elapsed . other)
-  (write (append (list timestamp (string->number size)
-                                    (string->number elapsed))
-                 other))
-  (newline)
+  (pp (append (list timestamp (string->number size)
+                              (string->number elapsed))
+              other))
   seed)
 
 (define (make-text-report-output sep)
