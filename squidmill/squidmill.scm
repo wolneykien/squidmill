@@ -200,7 +200,7 @@
       (values seed 0 #f)
       ((make-string-join " ")
          (make-union-select select-stm where-stm group-stm)
-         group-stm order-stm limit-stm))))
+         order-stm limit-stm))))
 
 (define (s-report-output seed timestamp id size elapsed)
   (write (list timestamp id (string->number size)
