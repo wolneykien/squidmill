@@ -196,7 +196,7 @@
         (order-stm (make-order-stm ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (db-fold-left
-      (make-out-proc out-proc limit)
+      (make-out-proc out-proc seed limit)
       (values seed 0 #f)
       ((make-string-join " ")
          (make-union-select select-stm where-stm group-stm)
