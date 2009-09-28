@@ -226,7 +226,10 @@
   (lambda (seed timestamp size elapsed . other)
     (display
       (apply (make-string-join sep)
-        (map object->string
+        (map (lambda (a)
+               (if (not (string? a))
+                 (object->string a)
+                 a))
           (append
             (list timestamp size elapsed)
             other))))
