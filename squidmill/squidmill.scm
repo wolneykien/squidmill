@@ -325,7 +325,7 @@
             (scan-next (cdr args))))))))
 
 (define (main db-name bulk-size sdate edate ident-pat
-              uri-pat minsize maxsize limit)
+              uri-pat minsize maxsize limit . input-files)
   (call-with-values
     (lambda () (sqlite3 db-name))
     (lambda (db-fold-left db-close)
