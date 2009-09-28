@@ -137,16 +137,16 @@
               (string-append "uri is like '%" uri-pat "%'"))))
     ""))
 
-(define (make-union-select select-stm . tail-smts)
+(define (make-union-select select-stm . tail-stms)
   ((make-string-join " union ")
     (string-append select-stm " access_log "
-                   (apply (make-string-join " ") tail-smts)))
+                   (apply (make-string-join " ") tail-stms)))
     (string-append select-stm " hourly_log "
-                   (apply (make-string-join " ") tail-smts))
+                   (apply (make-string-join " ") tail-stms))
     (string-append select-stm " daily_log "
-                   (apply (make-string-join " ") tail-smts))
+                   (apply (make-string-join " ") tail-stms))
     (string-append select-stm " monthly_log "
-                   (apply (make-string-join " ") tail-smts)))
+                   (apply (make-string-join " ") tail-stms)))
 
 (define (make-limit-stm limit)
   (if (and limit (>= limit 0))
