@@ -153,10 +153,10 @@
     (string-append "limit " (number->string limit))
     ""))
 
-(define (make-select-stm stime etime minsize maxsize ident-pat uri-pat)
+(define (make-select-stm time-field stime etime minsize maxsize
+                         ident-pat uri-pat)
   (string-append
-    "select strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
-                    "'unixepoch', 'localtime') as timestamp,"
+    "select " time-field " as timestamp,"
     " sum(size) as size, sum(elapsed) as elapsed"
     (if ident-pat ", ident" "")
     (if uri-pat ", uri" "")
@@ -190,15 +190,20 @@
 (define (report db-fold-left out-proc seed
                 stime etime minsize maxsize ident-pat uri-pat
                 limit)
-  (let ((select-stm (make-select-stm stime etime minsize maxsize
-                                     ident-pat uri-pat))
+  (let ((select-stm (make-select-stm
+                      "max(timestamp)"
+                      stime etime minsize maxsize ident-pat uri-pat))
         (where-stm (make-where-stm stime etime minsize maxsize
                                    ident-pat uri-pat))
         (group-stm (make-group-stm ident-pat uri-pat))
         (order-stm (make-order-stm ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (let ((stm ((make-string-join " ")
-                  select-stm
+                  (make-select-stm
+                    (string-append
+                      "strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
+                               "'unixepoch', 'localtime')")
+                    stime etime minsize maxsize ident-pat uri-pat)
                   "("
                   (make-union-select select-stm where-stm group-stm)
                   ") as log"
