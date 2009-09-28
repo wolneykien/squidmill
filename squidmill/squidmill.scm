@@ -328,7 +328,7 @@
             (scan-next (cdr args))))))))
 
 (define (main db-name bulk-size sdate edate ident-pat
-              uri-pat minsize maxsize limit . input-files)
+              uri-pat minsize maxsize limit round-data . input-files)
   (call-with-values
     (lambda () (sqlite3 db-name))
     (lambda (db-fold-left db-close)
@@ -340,4 +340,5 @@
           (init-db db-fold-left)
           (if (not (null? input-files))
             (apply add-logs db-fold-left bulk-size input-files))
+          (if round-data (round-all-logs db-fold-left))
           (db-close))))))
