@@ -269,8 +269,8 @@
      files))
 
 (define (opt-key? arg)
-  (and (> (string-length (car args)) 1)
-       (eq? (string-ref (car args) 0) #\-)))
+  (and (> (string-length arg) 1)
+       (eq? (string-ref arg 0) #\-)))
 
 (define (scan-args . command-line)
   (let ((input-files '())
