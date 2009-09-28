@@ -132,9 +132,9 @@
          (and maxsize
               (string-append "sum(size) <= " (number->string maxsize)))
          (and ident-pat (> (string-length ident-pat) 0)
-              (string-append "ident is like '%" ident-pat "%'"))
+              (string-append "ident like '%" ident-pat "%'"))
          (and uri-pat (> (string-length uri-pat) 0)
-              (string-append "uri is like '%" uri-pat "%'"))))
+              (string-append "uri like '%" uri-pat "%'"))))
     ""))
 
 (define (make-union-select select-stm . tail-stms)
