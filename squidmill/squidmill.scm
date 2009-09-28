@@ -154,8 +154,8 @@
 (define (make-select-stm stime etime minsize maxsize ident-pat uri-pat)
   (string-append
     "select strftime('d%.%m.%Y %H:%M:%S', max(timestamp), 'localtime'),"
-    (and ident-pat " ident,")
-    (and uri-pat " uri,")
+    (if ident-pat " ident," "")
+    (if uri-pat " uri," "")
     " sum(size), sum(elapsed)"
     " from"))
 
