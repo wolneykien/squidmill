@@ -209,9 +209,6 @@
                   ") as log"
                   group-stm
                   order-stm limit-stm)))
-      (display "SQL:")
-      (display stm)
-      (newline)
       (db-fold-left
         (make-out-proc out-proc seed limit)
         (values seed 0 #f)
