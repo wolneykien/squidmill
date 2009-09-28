@@ -213,8 +213,7 @@
         stm))))
 
 (define (s-report-output seed timestamp size elapsed . other)
-  (pp (append (list timestamp (string->number size)
-                              (string->number elapsed))
+  (pp (append (list timestamp size elapsed)
               other))
   seed)
 
@@ -222,8 +221,10 @@
   (lambda (seed timestamp size elapsed . other)
     (display
       (apply (make-string-join sep)
-        timestamp (string->number size) (string->number elapsed)
-        other))
+        (map object->string
+          (append
+            (list timestamp size elapsed)
+            other))))
     (newline)
     seed))
 
