@@ -212,9 +212,12 @@
 
 (define (make-text-report-output sep)
   (lambda (seed timestamp size elapsed . other)
-    (apply (make-string-join sep)
-      timestamp (string->number size) (string->number elapsed)
-      other)))
+    (display
+      (apply (make-string-join sep)
+        timestamp (string->number size) (string->number elapsed)
+        other))
+    (newline)
+    seed))
 
 (define (process-log proc port)
   (let loop ((ln (read-line port))
