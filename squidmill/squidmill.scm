@@ -82,7 +82,9 @@
 (define (round-log db-fold-left from-table to-table age-note time-template)
   (db-fold-left values #f "begin exclusive transaction")
   (let ((threshold-condition
-          (string-append "timestamp <= strftime('%s', 'now', '-" age-note))))
+          (string-append "timestamp <= strftime('%s', 'now', '-"
+                         age-note
+                         "')")))
     (db-fold-left values #f
       (string-append
         "insert or replace into " to-table " "
