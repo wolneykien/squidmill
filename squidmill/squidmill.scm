@@ -280,11 +280,12 @@
         (uri-pat #f)
         (minsize #f)
         (maxsize #f)
-        (limit #f))
+        (limit #f)
+        (round-data #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name bulk-size sdate edate ident-pat
-                      uri-pat minsize maxsize limit)
+                      uri-pat minsize maxsize limit round-data)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (car args))
@@ -318,6 +319,8 @@
                       (scan-next (cddr args)))))
             ((-l) (set! limit (string->number (cadr args)))
                   (scan-next (cddr args)))
+            ((-R) (set! round-data #t)
+                  (scan-next (cdr args)))
             (else (usage)
                   (exit 0)))
           (begin
