@@ -134,7 +134,8 @@
          (and ident-pat (> (string-length ident-pat) 0)
               (string-append "ident is like '%" ident-pat "%'"))
          (and uri-pat (> (string-length uri-pat) 0)
-              (string-append "uri is like '%" uri-pat "%'"))))))
+              (string-append "uri is like '%" uri-pat "%'"))))
+    ""))
 
 (define (make-union-select select-stm . tail-smts)
   ((make-string-join " union ")
