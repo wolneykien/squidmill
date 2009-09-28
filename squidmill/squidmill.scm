@@ -335,5 +335,6 @@
           (raise e))
         (lambda ()
           (init-db db-fold-left)
-          (apply add-logs db-fold-left bulk-size input-files)
+          (if (not (null? input-files))
+            (apply add-logs db-fold-left bulk-size input-files))
           (db-close))))))
