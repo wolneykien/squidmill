@@ -198,7 +198,11 @@
         (order-stm (make-order-stm ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (let ((stm ((make-string-join " ")
+                  select-stm
+                  "("
                   (make-union-select select-stm where-stm group-stm)
+                  ") as log"
+                  group-stm
                   order-stm limit-stm)))
       (display "SQL:")
       (display stm)
