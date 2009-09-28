@@ -139,13 +139,13 @@
 
 (define (make-union-select select-stm . tail-stms)
   ((make-string-join " union ")
-    (string-append select-stm " access_log"
+    (string-append select-stm " access_log "
                    (apply (make-string-join " ") tail-stms))
-    (string-append select-stm " hourly_log"
+    (string-append select-stm " hourly_log "
                    (apply (make-string-join " ") tail-stms))
-    (string-append select-stm " daily_log"
+    (string-append select-stm " daily_log "
                    (apply (make-string-join " ") tail-stms))
-    (string-append select-stm " monthly_log"
+    (string-append select-stm " monthly_log "
                    (apply (make-string-join " ") tail-stms))))
 
 (define (make-limit-stm limit)
