@@ -179,7 +179,7 @@
     (call-with-values
       (lambda () seed)
       (lambda (out-seed count more)
-        (if (<= count limit)
+        (if (or (not limit) (<= count limit))
           (values #t
                  (values (apply out-proc out-seed cols)
                          (+ count 1)
