@@ -117,23 +117,24 @@
   (daily->monthly db-fold-left))
 
 (define (make-where-stm stime etime minsize maxsize ident-pat uri-pat)
-  (string-append
-    "where "
-    ((make-string-join " and ")
-       (and stime
-           (string-append "timestamp > strftime('%s', '"
-                          stime "', 'utc')"))
-       (and etime
-            (string-append "timestamp <= strftime('%s', '"
-                           etime "', 'utc')"))
-       (and minsize
-            (string-append "sum(size) > " (number->string minsize)))
-       (and maxsize
-            (string-append "sum(size) <= " (number->string maxsize)))
-       (and ident-pat (> (string-length ident-pat) 0)
-            (string-append "ident is like '%" ident-pat "%'"))
-       (and uri-pat (> (string-length uri-pat) 0)
-            (string-append "uri is like '%" uri-pat "%'")))))
+  (if (or stime etime minsize maxsize ident-pat uri-pat)
+    (string-append
+      "where "
+      ((make-string-join " and ")
+         (and stime
+             (string-append "timestamp > strftime('%s', '"
+                            stime "', 'utc')"))
+         (and etime
+              (string-append "timestamp <= strftime('%s', '"
+                             etime "', 'utc')"))
+         (and minsize
+              (string-append "sum(size) > " (number->string minsize)))
+         (and maxsize
+              (string-append "sum(size) <= " (number->string maxsize)))
+         (and ident-pat (> (string-length ident-pat) 0)
+              (string-append "ident is like '%" ident-pat "%'"))
+         (and uri-pat (> (string-length uri-pat) 0)
+              (string-append "uri is like '%" uri-pat "%'"))))))
 
 (define (make-union-select select-stm . tail-smts)
   ((make-string-join " union ")
