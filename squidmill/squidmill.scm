@@ -378,7 +378,7 @@
             (apply report
               (append
                 (list db-fold-left)
-                (case report
+                (case report-format
                   ((list) (list s-report-output #f))
                   (else (list (make-text-report-output "\t") #f)))
                 (list sdate edate minsize maxsize ident-pat uri-pat
