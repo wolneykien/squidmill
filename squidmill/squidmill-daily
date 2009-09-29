@@ -1,0 +1,9 @@
+#!/bin/sh
+
+LOGDIR=/var/log/squid
+DBFILE=$LOGDIR/squidmill.db
+
+mkdir -p "$MILLDIR"
+
+squidmill -d "$DBFILE" -R
+
