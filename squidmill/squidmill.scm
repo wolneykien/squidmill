@@ -194,6 +194,11 @@
         (order-stm (make-order-stm ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (let ((stm ((make-string-join " ")
+                  (string-append
+                    "select timestamp, size, elapsed"
+                    (if ident-pat ", ident" "")
+                    (if uri-pat ", uri" ""))
+                  "from ("
                   (make-select-stm
                     (string-append
                       "strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
@@ -203,6 +208,18 @@
                   (make-union-select select-stm where-stm group-stm)
                   ") as log"
                   group-stm
+                  ") as res_log"
+                  (if (or minsize maxsize)
+                    (string-append
+                      " where "
+                      ((make-string-join " and ")
+                        (and minsize (string-append
+                                       "size > "
+                                       (number->string minsize)))
+                        (and maxsize (string-append
+                                       "size <= "
+                                       (number->string maxsize)))))
+                    "")
                   order-stm limit-stm)))
       (db-fold-left
         (make-out-proc out-proc seed limit)
