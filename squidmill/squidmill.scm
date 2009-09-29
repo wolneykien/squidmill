@@ -434,3 +434,13 @@
                 (list sdate edate minsize maxsize ident-pat uri-pat
                       limit))))
           (db-close))))))
+
+(let ((args
+        (with-exception-catcher
+          (lambda (e) #f)
+          (lambda () (apply scan-args (cdr (command-line)))))))
+  (if args
+    (apply main args)
+    (begin
+      (usage)
+      (exit 1))))
