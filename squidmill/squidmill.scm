@@ -325,6 +325,7 @@
       " "
       "Update options:"
       "    -B NUMBER         Bulk-insert size (default is 256)"
+      "    -F                Follow mode"
       " "
       "Rounding options:"
       "    -R                Round old data to save space (and reporting time)"
@@ -347,6 +348,7 @@
   (let ((input-files '())
         (db-name "squidmill.db")
         (bulk-size 256)
+        (follow #f)
         (sdate #f)
         (edate #f)
         (ident-pat #f)
@@ -403,6 +405,8 @@
                     (begin
                       (set! report (string->symbol (cadr args)))
                       (scan-next (cddr args)))))
+            ((F) (set! follow #t)
+                 (scan-next (cdr args)))
             (else (usage)
                   (exit 0)))
           (begin
