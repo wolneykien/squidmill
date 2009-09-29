@@ -42,6 +42,11 @@
         (cadr uri-list)
         uri))))
 
+(define-macro (db-fold-left-debug fn seed stm)
+  `(let ((debug-stm ,stm))
+     (pp debug-stm)
+     (db-fold-left ,fn ,seed debug-stm)))
+
 (define (bulk-insert db-fold-left bulk)
   (db-fold-left values #f
     (string-append
