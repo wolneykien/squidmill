@@ -310,6 +310,39 @@
   (and (> (string-length arg) 1)
        (eq? (string-ref arg 0) #\-)))
 
+(define (version)
+  "2.0.0")
+
+(define (usage)
+  (display
+    ((make-string-join "\n")
+      (string-append "Squidmill v" (version))
+      "Usage: squidmill [log files] [options]"
+      " "
+      "General options:"
+      "    -d DB-FILE        Database file name"
+      "    -h                Print this screen"
+      " "
+      "Update options:"
+      "    -B NUMBER         Bulk-insert size (default is 256)"
+      " "
+      "Rounding options:"
+      "    -R                Round old data to save space (and reporting time)"
+      " "
+      "Reporting options:"
+      "    -r [FORMAT]       Report format. Default is plaintext."
+      "                      Use 'list' for Scheme list."
+      "    -s YYYY-DD-MM     Select records newer than that"
+      "    -e YYYY-DD-MM     Select records not newer than that"
+      "    -m NUMBER         Exclude trafic statistic not more than that"
+      "    -M NUMBER         Exclude trafic statistic more than that"
+      "    -i [PATTERN]      Count statistic for individual users filtering"
+      "                      them optionally"
+      "    -u [PATTERN]      Count statistic for individual URIs filtering"
+      "                      them optionally"
+      "    -l NUMBER         Limit report by that number of rows"))
+  (newline))
+
 (define (scan-args . command-line)
   (let ((input-files '())
         (db-name "squidmill.db")
