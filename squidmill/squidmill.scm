@@ -165,9 +165,11 @@
        (and ident-pat "ident")
        (and uri-pat "uri"))))
 
-(define (make-order-stm ident-pat uri-pat)
+(define (make-order-stm minsize maxsize ident-pat uri-pat)
   ((make-string-join ", ")
-     "order by 1 desc"
+     (if (or minsize maxsize)
+       "order by 2 desc, 1 desc"
+       "order by 1 desc, 2 desc")
      (and ident-pat "ident asc")
      (and uri-pat "uri asc")))
 
@@ -191,7 +193,7 @@
                       stime etime minsize maxsize ident-pat uri-pat))
         (where-stm (make-where-stm stime etime ident-pat uri-pat))
         (group-stm (make-group-stm ident-pat uri-pat))
-        (order-stm (make-order-stm ident-pat uri-pat))
+        (order-stm (make-order-stm minsize maxsize ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (let ((stm ((make-string-join " ")
                   (string-append
