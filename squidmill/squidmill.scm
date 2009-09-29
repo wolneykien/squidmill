@@ -370,7 +370,7 @@
             (else (usage)
                   (exit 0)))
           (begin
-            (set! input-files (append input-files (car args)))
+            (set! input-files (append input-files (list (car args))))
             (scan-next (cdr args))))))))
 
 (define (main db-name bulk-size sdate edate ident-pat
