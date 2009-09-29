@@ -294,7 +294,7 @@
           (set! last-ident ident)
           bulk)))))
 
-(define (add-logs db-fold-left bulk-size . files)
+(define (add-logs db-fold-left bulk-size follow . files)
   (for-each
     (lambda (file)
       (call-with-input file
@@ -360,7 +360,7 @@
         (report #f))
     (let scan-next ((args command-line))
       (if (null? args)
-        (append (list db-name bulk-size sdate edate ident-pat
+        (append (list db-name bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report)
                 input-files)
         (if (opt-key? (car args))
@@ -413,7 +413,7 @@
             (set! input-files (append input-files (list (car args))))
             (scan-next (cdr args))))))))
 
-(define (main db-name bulk-size sdate edate ident-pat
+(define (main db-name bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               . input-files)
   (call-with-values
@@ -426,7 +426,7 @@
         (lambda ()
           (init-db db-fold-left)
           (if (not (null? input-files))
-            (apply add-logs db-fold-left bulk-size input-files))
+            (apply add-logs db-fold-left bulk-size follow input-files))
           (if round-data (round-all-logs db-fold-left))
           (if report-format
             (apply report
