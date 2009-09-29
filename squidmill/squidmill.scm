@@ -258,7 +258,7 @@
             (apply proc bulk (string-tokenize ln '(#\space #\tab #\newline))))
       bulk)))
 
-(define (call-with-input filename proc)
+(define (call-with-input filename follow proc)
   (if (equal? filename "-")
     (proc (current-input-port))
     (call-with-input-file filename proc)))
@@ -297,7 +297,7 @@
 (define (add-logs db-fold-left bulk-size follow . files)
   (for-each
     (lambda (file)
-      (call-with-input file
+      (call-with-input file follow
         (lambda (port)
           (let ((bulk (process-log (make-add-event db-fold-left
                                                    bulk-size)
