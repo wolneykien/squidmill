@@ -100,7 +100,7 @@
         "ident, uri "
         "order by 1 desc"))
     (db-fold-left values #f
-      (string-append "delete from access_log where "
+      (string-append "delete from " from-table " where "
                      threshold-condition)))
   (db-fold-left values #f "commit transaction"))
 
