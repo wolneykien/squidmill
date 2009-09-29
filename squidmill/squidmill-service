@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+#
+# chkconfig: - 90 25
+# description: Online squidmill database update service
+
+# Source function library.
+. /etc/init.d/functions
+
+PIDFILE=/var/run/squidmill.pid
+LOCKFILE=/var/lock/subsys/squidmill
+SQUIDLOGFILE=/var/log/squid/access.log
+DBFILE=/var/log/squid/squidmill.db
+
+start()
+{
+    start_daemon --pidfile "$PIDFILE" \
+                 --make-pidfile \
+                 --lockfile "$LOCKFILE" \
+                 --user squid \
+                 -- squidmill -d "$DBFILE" -F "$SQUIDLOGFILE"
+}
+
+stop()
+{
+    stop_daemon --pidfile "$PIDFILE" \
+                --lockfile "$LOCKFILE" -- \
+                --expect-user squid \
+                -- squidmill
+}
+
+case "$1" in
+    start)
+      start
+        ;;
+    stop|condstop)
+      stop
+      ;;
+    status)
+        ;;
+    restart|reload|condrestart|condreload)
+        stop
+        start
+        ;;
+    *)
+        msg_usage "${0##*/} {start|stop|reload|restart|condstop|condrestart|condreload|status}"
+        RETVAL=1
+esac
+
+exit $RETVAL
