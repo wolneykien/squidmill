@@ -116,8 +116,8 @@
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
-(define (make-where-stm stime etime minsize maxsize ident-pat uri-pat)
-  (if (or stime etime minsize maxsize ident-pat uri-pat)
+(define (make-where-stm stime etime ident-pat uri-pat)
+  (if (or stime etime ident-pat uri-pat)
     (string-append
       "where "
       ((make-string-join " and ")
@@ -127,10 +127,6 @@
          (and etime
               (string-append "timestamp <= strftime('%s', '"
                              etime "', 'utc')"))
-         (and minsize
-              (string-append "sum(size) > " (number->string minsize)))
-         (and maxsize
-              (string-append "sum(size) <= " (number->string maxsize)))
          (and ident-pat (> (string-length ident-pat) 0)
               (string-append "ident like '%" ident-pat "%'"))
          (and uri-pat (> (string-length uri-pat) 0)
