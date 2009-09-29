@@ -261,7 +261,12 @@
 (define (call-with-input filename follow proc)
   (if (equal? filename "-")
     (proc (current-input-port))
-    (call-with-input-file filename proc)))
+    (if (not follow)
+      (call-with-input-file filename proc)
+      (call-with-input-process
+        (list path: "tail"
+              arguments: (list "-F" filename))
+        proc))))
 
 (define (make-add-event db-fold-left bulk-size)
   (let ((last-timestamp "")
