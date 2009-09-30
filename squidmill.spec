@@ -11,7 +11,7 @@ License: GPL
 Group: System/Configuration/Other
 
 # Automatically added by buildreq on Mon Apr 20 2009
-BuildRequires: gambit gambit-sqlite3-devel rpm-macros-fillup
+BuildRequires: gambit gambit-sqlite3-devel gambit-signal-devel rpm-macros-fillup
 
 %description
 Squidmill unility can acquire and integrate information from
@@ -25,14 +25,10 @@ data are included.
 %setup
 
 %build
-gsc -:daq- -link %{_includedir}/gambit/libgambc-sqlite3.c squidmill.scm
-gsc -:daq- -obj squidmill.c squidmill_.c
-gcc squidmill.o squidmill_.o -Wl,-rpath,%{_libdir}/gambit -lgambc -L%{_libdir}/gambit -lgambc-sqlite3 -o squidmill
+%make includedir=%{_includedir} libdir=%{_libdir}
 
 %install
-install -p -m0755 -D squidmill %buildroot%_sbindir/squidmill
-install -p -m0755 -D squidmill-daily %buildroot%_sysconfdir/cron.daily/squidmill
-install -p -m0755 -D squidmill-service %buildroot%_initdir/squidmill
+%makeinstall initdir=%buildroot%{_initdir}
 
 %files
 %_sbindir/squidmill
