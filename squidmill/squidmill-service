@@ -9,14 +9,50 @@
 
 PIDFILE=/var/run/squidmill.pid
 LOCKFILE=/var/lock/subsys/squidmill
-SQUIDLOGFILE=/var/log/squid/access.log
+SQUIDLOGFILE=
+SQUIDLOGUSER=
 DBFILE=/var/log/squid/squidmill.db
+SQUIDCONF=/etc/squid/squid.conf
 
 # Source networking configuration.
 SourceIfNotEmpty /etc/sysconfig/squidmill
 
 start()
 {
+    if [ -z "$SQUIDLOGFILE" ] || [ -z "$SQUIDLOGUSER" ]; then
+        if [ -n "$SQUIDCONF" ]; then
+            res=`awk '/^access_log/ { print $2 ":" $3; }' "$SQUIDCONF"`
+            if [ -z "$res" ]; then
+                printf "Squidmill: read access.log location from $SQUIDCONF"
+                failure "access_log not found"
+                echo
+                exit 1
+            fi
+            if [ -z "$SQUIDLOGFILE" ]; then
+              SQUIDLOGFILE="${res%%:*}"
+            fi
+            if [ -z "$SQUIDLOGUSER" ]; then
+              SQUIDLOGUSER="${res##*:}"
+            fi
+        else
+            if [ -z "$SQUIDLOGFILE" ]; then
+              SQUIDLOGFILE=/var/log/squid/access.log
+            fi
+            if [ -z "$SQUIDLOGUSER" ]; then
+              SQUIDLOGUSER=squid
+            fi
+        fi
+    fi
+
+    if ! [ -d `dirname "$SQUIDLOGFILE"` ]; then
+      mkdir -p -m0755 `dirname "$SQUIDLOGFILE"`
+      chown $SQUIDLOGUSER `dirname "$SQUIDLOGFILE"`
+    fi
+    if ! [ -f "$SQUIDLOGFILE" ]; then
+      touch "$SQUIDLOGFILE"
+      chown $SQUIDLOGUSER "$SQUIDLOGFILE"
+    fi
+
     start_daemon --pidfile "$PIDFILE" \
                  --make-pidfile \
                  --lockfile "$LOCKFILE" \
