@@ -469,12 +469,18 @@
 (signal-set-exception! *SIGINT*)
 (signal-set-exception! *SIGQUIT*)
 
-(let ((args
-        (with-exception-catcher
-          (lambda (e) #f)
-          (lambda () (apply scan-args (cdr (command-line)))))))
-  (if args
-    (apply main args)
-    (begin
-      (usage)
-      (exit 1))))
+(with-exception-catcher
+  (lambda (e)
+    (if (signal-exception? e)
+      (exit 0)
+      (raise e)))
+    (lambda ()
+      (let ((args
+              (with-exception-catcher
+                (lambda (e) #f)
+                (lambda () (apply scan-args (cdr (command-line)))))))
+        (if args
+          (apply main args)
+          (begin
+            (usage)
+            (exit 1))))))
