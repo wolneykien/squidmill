@@ -13,3 +13,5 @@ squidmill.c: squidmill.scm
 	                 $(includedir)/gambit/libgambc-signal.c \
 	                 squidmill.scm
 
+clean:
+	rm -f *.o *.c squidmill
