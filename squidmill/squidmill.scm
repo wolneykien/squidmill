@@ -261,11 +261,19 @@
         (current-user-interrupt-handler old-handler)))))
 
 (define (process-log proc port)
-  (let loop ((ln (read-line port))
+  (let loop ((ln (with-interrupt-handler
+                   (lambda () (raise (cons 'process-log-error '())))
+                   (lambda () (read-line port))))
              (bulk '()))
     (if (not (eof-object? ln))
-      (loop (read-line port)
-            (apply proc bulk (string-tokenize ln '(#\space #\tab #\newline))))
+      (let ((new-bulk
+              (apply proc
+                bulk
+                (string-tokenize ln '(#\space #\tab #\newline)))))
+        (loop (with-interrupt-handler
+                (lambda () (raise (cons 'process-log-error new-bulk)))
+                (lambda () (read-line port)))
+              new-bulk))
       bulk)))
 
 (define (call-with-input filename follow proc)
