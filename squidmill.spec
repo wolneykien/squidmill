@@ -22,7 +22,7 @@ Online database update service and anacron job file for rounding an old
 data are included.
 
 %prep
-%setup -b1
+%setup
 
 %build
 gsc -:daq- -link %{_includedir}/gambit/libgambc-sqlite3.c squidmill.scm
