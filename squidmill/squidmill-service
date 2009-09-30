@@ -41,7 +41,8 @@ case "$1" in
       stop
       ;;
     status)
-        ;;
+      status --pidfile "$PIDFILE" /bin/su
+      ;;
     restart|reload|condrestart|condreload)
         stop
         start
