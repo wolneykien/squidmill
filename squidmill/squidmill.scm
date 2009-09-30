@@ -250,31 +250,21 @@
     (newline)
     seed))
 
-(define (with-interrupt-handler handler thunk)
-  (let ((old-handler #f))
-    (dynamic-wind
-      (lambda ()
-        (set! old-handler (current-user-interrupt-handler))
-        (current-user-interrupt-handler handler))
-      thunk
-      (lambda ()
-        (current-user-interrupt-handler old-handler)))))
-
 (define (process-log proc port)
-  (let loop ((ln (with-interrupt-handler
-                   (lambda () (raise (cons 'process-log-error '())))
-                   (lambda () (read-line port))))
-             (bulk '()))
-    (if (not (eof-object? ln))
-      (let ((new-bulk
-              (apply proc
-                bulk
-                (string-tokenize ln '(#\space #\tab #\newline)))))
-        (loop (with-interrupt-handler
-                (lambda () (raise (cons 'process-log-error new-bulk)))
-                (lambda () (read-line port)))
-              new-bulk))
-      bulk)))
+  (let ((bulk '()))
+    (with-exception-catcher
+      (lambda (e)
+        (raise (cons e bulk)))
+      (lambda ()
+        (let loop ((ln (read-line port)))
+          (if (not (eof-object? ln))
+            (begin
+              (set! bulk
+                (apply proc
+                  bulk
+                  (string-tokenize ln '(#\space #\tab #\newline))))
+              (loop (read-line port)))))))
+    bulk))
 
 (define (call-with-input filename follow proc)
   (if (equal? filename "-")
@@ -318,25 +308,28 @@
           bulk)))))
 
 (define (add-logs db-fold-left bulk-size follow . files)
-  (with-exception-catcher
-    (lambda (e)
-      (if (and (pair? e)
-               (eq? 'process-log-error (car e)))
-        (begin
-          (bulk-insert db-fold-left (cdr e))
-          (exit 0))
-        (raise e)))
-    (lambda ()
-      (for-each
-        (lambda (file)
-          (call-with-input file follow
-            (lambda (port)
-              (let ((bulk (process-log (make-add-event db-fold-left
-                                                       bulk-size)
-                                       port)))
-                (if (not (null? bulk))
-                  (bulk-insert db-fold-left bulk))))))
-         files))))
+  (for-each
+    (lambda (file)
+      (call-with-input file follow
+        (lambda (port)
+          (let ((bulk 
+                   (with-exception-catcher
+                     (lambda (e)
+                       (if (not (null? (cdr e)))
+                         (bulk-insert db-fold-left (cdr e)))
+                       (if follow
+                         (send-signal (process-pid port)
+                                      (if (signal-exception? (car e))
+                                        (cdar e)
+                                        2)))
+                       (raise (car e)))
+                     (lambda ()
+                       (process-log (make-add-event db-fold-left
+                                                    bulk-size)
+                                    port)))))
+              (if (not (null? bulk))
+                (bulk-insert db-fold-left bulk))))))
+       files))
 
 (define (opt-key? arg)
   (and (> (string-length arg) 1)
@@ -470,6 +463,11 @@
                 (list sdate edate minsize maxsize ident-pat uri-pat
                       limit))))
           (db-close))))))
+
+(signal-set-exception! *SIGHUP*)
+(signal-set-exception! *SIGTERM*)
+(signal-set-exception! *SIGINT*)
+(signal-set-exception! *SIGQUIT*)
 
 (let ((args
         (with-exception-catcher
