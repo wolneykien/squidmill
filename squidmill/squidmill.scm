@@ -250,6 +250,16 @@
     (newline)
     seed))
 
+(define (with-interrupt-handler handler thunk)
+  (let ((old-handler #f))
+    (dynamic-wind
+      (lambda ()
+        (set! old-handler (current-user-interrupt-handler))
+        (current-user-interrupt-handler handler))
+      thunk
+      (lambda ()
+        (current-user-interrupt-handler old-handler)))))
+
 (define (process-log proc port)
   (let loop ((ln (read-line port))
              (bulk '()))
