@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 #
-# chkconfig: - 90 25
+# chkconfig: - 95 25
 # description: Online squidmill database update service
 
 # Source function library.
