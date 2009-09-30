@@ -12,6 +12,9 @@ LOCKFILE=/var/lock/subsys/squidmill
 SQUIDLOGFILE=/var/log/squid/access.log
 DBFILE=/var/log/squid/squidmill.db
 
+# Source networking configuration.
+SourceIfNotEmpty /etc/sysconfig/squidmill
+
 start()
 {
     start_daemon --pidfile "$PIDFILE" \
