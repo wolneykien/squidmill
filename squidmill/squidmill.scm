@@ -318,16 +318,25 @@
           bulk)))))
 
 (define (add-logs db-fold-left bulk-size follow . files)
-  (for-each
-    (lambda (file)
-      (call-with-input file follow
-        (lambda (port)
-          (let ((bulk (process-log (make-add-event db-fold-left
-                                                   bulk-size)
-                                   port)))
-            (if (not (null? bulk))
-              (bulk-insert db-fold-left bulk))))))
-     files))
+  (with-exception-catcher
+    (lambda (e)
+      (if (and (pair? e)
+               (eq? 'process-log-error (car e)))
+        (begin
+          (bulk-insert db-fold-left (cdr e))
+          (exit 0))
+        (raise e)))
+    (lambda ()
+      (for-each
+        (lambda (file)
+          (call-with-input file follow
+            (lambda (port)
+              (let ((bulk (process-log (make-add-event db-fold-left
+                                                       bulk-size)
+                                       port)))
+                (if (not (null? bulk))
+                  (bulk-insert db-fold-left bulk))))))
+         files))))
 
 (define (opt-key? arg)
   (and (> (string-length arg) 1)
