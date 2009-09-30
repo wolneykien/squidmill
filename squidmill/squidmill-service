@@ -18,7 +18,7 @@ start()
                  --make-pidfile \
                  --lockfile "$LOCKFILE" \
                  --user squid \
-                 -- squidmill -d "$DBFILE" -F "$SQUIDLOGFILE"
+                 -- squidmill -d "$DBFILE" -B 1 -F "$SQUIDLOGFILE"
 }
 
 stop()
