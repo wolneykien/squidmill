@@ -1,9 +1,10 @@
 #!/bin/sh
 
-LOGDIR=/var/log/squid
-DBFILE=$LOGDIR/squidmill.db
+DBFILE=/var/log/squid/squidmill.db
 
-mkdir -p "$MILLDIR"
+[ -s "$DBFILE" ] && . "$DBFILE" "$@"
 
-squidmill -d "$DBFILE" -R
+if [ -f "$DBFILE" ]; then
+  squidmill -d "$DBFILE" -R
+fi
 
