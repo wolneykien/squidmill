@@ -38,6 +38,7 @@ data are included.
 %changelog
 * Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt3
 - Fix error in Scheme output to stdout.
+- Exit with exit code 100 iff reporting limit is exceeded.
 
 * Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt2
 - Squidmill service update: create DB file directory if necessary.
