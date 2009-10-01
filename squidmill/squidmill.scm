@@ -180,13 +180,12 @@
   (lambda (seed . cols)
     (call-with-values
       (lambda () seed)
-      (lambda (out-seed count more)
+      (lambda (out-seed count)
         (if (or (not limit) (<= count limit))
           (values #t
                  (values (apply out-proc out-seed cols)
-                         (+ count 1)
-                         #f))
-          (values #f (values out-seed count #t)))))))
+                         (+ count 1)))
+          (values #f #f))))))
 
 (define (report db-fold-left out-proc seed
                 stime etime minsize maxsize ident-pat uri-pat
