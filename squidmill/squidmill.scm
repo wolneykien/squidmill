@@ -227,7 +227,7 @@
                   order-stm limit-stm)))
       (db-fold-left
         (make-out-proc out-proc seed limit)
-        (values seed 0 #f)
+        (values seed 0)
         stm))))
 
 (define (s-report-output seed . cols)
