@@ -231,23 +231,20 @@
         (values seed 0 #f)
         stm))))
 
-(define (s-report-output seed timestamp size elapsed . other)
-  (write (append (list timestamp size elapsed)
-              other))
+(define (s-report-output seed . cols)
+  (write cols)
   (newline)
   seed)
 
 (define (make-text-report-output sep)
-  (lambda (seed timestamp size elapsed . other)
+  (lambda (seed . cols)
     (display
       (apply (make-string-join sep)
         (map (lambda (a)
                (if (not (string? a))
                  (object->string a)
                  a))
-          (append
-            (list timestamp size elapsed)
-            other))))
+          cols)))
     (newline)
     seed))
 
