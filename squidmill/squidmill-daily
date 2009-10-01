@@ -2,7 +2,7 @@
 
 DBFILE=/var/log/squid/squidmill.db
 
-[ -s "$DBFILE" ] && . "$DBFILE" "$@"
+[ -s /etc/sysconfig/squidmill ] && . /etc/sysconfig/squidmill "$@"
 
 if [ -f "$DBFILE" ]; then
   squidmill -d "$DBFILE" -R
