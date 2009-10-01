@@ -1,8 +1,9 @@
 #!/bin/sh
 
 DBFILE=/var/log/squid/squidmill.db
+CONFFILE=/etc/sysconfig/squidmill
 
-[ -s /etc/sysconfig/squidmill ] && . /etc/sysconfig/squidmill "$@"
+[ -s "$CONFFILE" ] && . "$CONFFILE" "$@"
 
 if [ -f "$DBFILE" ]; then
   squidmill -d "$DBFILE" -R
