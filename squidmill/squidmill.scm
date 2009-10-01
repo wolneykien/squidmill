@@ -232,8 +232,9 @@
         stm))))
 
 (define (s-report-output seed timestamp size elapsed . other)
-  (pp (append (list timestamp size elapsed)
+  (write (append (list timestamp size elapsed)
               other))
+  (newline)
   seed)
 
 (define (make-text-report-output sep)
