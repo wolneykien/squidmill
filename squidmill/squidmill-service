@@ -51,6 +51,11 @@ start()
       chown $SQUIDLOGUSER "$SQUIDLOGFILE"
     fi
 
+    if ! [ -d `dirname "$DBFILE"` ]; then
+      mkdir -p -m0755 `dirname "$DBFILE"`
+      chown $SQUIDLOGUSER `dirname "$DBFILE"`
+    fi
+
     start_daemon --pidfile "$PIDFILE" \
                  --make-pidfile \
                  --lockfile "$LOCKFILE" \
