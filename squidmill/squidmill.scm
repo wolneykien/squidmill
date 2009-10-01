@@ -435,6 +435,15 @@
             (set! input-files (append input-files (list (car args))))
             (scan-next (cdr args))))))))
 
+(define (do-report db-fold-left report-format . report-args)
+  (apply report
+    (append
+      (list db-fold-left)
+      (case report-format
+        ((list) (list s-report-output #f))
+         (else (list (make-text-report-output "\t") #f)))
+      report-args)))
+
 (define (main db-name bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               . input-files)
@@ -450,16 +459,14 @@
           (if (not (null? input-files))
             (apply add-logs db-fold-left bulk-size follow input-files))
           (if round-data (round-all-logs db-fold-left))
-          (if report-format
-            (apply report
-              (append
-                (list db-fold-left)
-                (case report-format
-                  ((list) (list s-report-output #f))
-                  (else (list (make-text-report-output "\t") #f)))
-                (list sdate edate minsize maxsize ident-pat uri-pat
-                      limit))))
-          (db-close))))))
+          (if (let ((ret (or (not report-format)
+                         (do-report db-fold-left report-format
+                                    sdate edate minsize maxsize
+                                    ident-pat uri-pat limit))))
+                (db-close)
+                ret)
+            (exit 0)
+            (exit 100)))))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
