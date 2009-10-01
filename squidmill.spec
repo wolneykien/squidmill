@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.0
-Release: alt2
+Release: alt3
 
 Source: %name-%version.tar.gz
 
@@ -36,6 +36,9 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt3
+- Fix error in Scheme output to stdout.
+
 * Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt2
 - Squidmill service update: create DB file directory if necessary.
 - Fix errors in the daily anacron job.
