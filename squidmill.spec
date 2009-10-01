@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.0
-Release: alt1
+Release: alt2
 
 Source: %name-%version.tar.gz
 
@@ -36,6 +36,10 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt2
+- Squidmill service update: create DB file directory if necessary.
+- Fix errors in the daily anacron job.
+
 * Tue Sep 29 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt1
 - SQLite3 based version.
 - Online database update service.
