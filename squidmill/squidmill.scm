@@ -383,11 +383,13 @@
         (maxsize #f)
         (limit #f)
         (round-data #f)
-        (report #f))
+        (report #f)
+        (summary #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name bulk-size follow sdate edate ident-pat
-                      uri-pat minsize maxsize limit round-data report)
+                      uri-pat minsize maxsize limit round-data report
+                      summary)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
@@ -433,6 +435,8 @@
                       (scan-next (cddr args)))))
             ((F) (set! follow #t)
                  (scan-next (cdr args)))
+            ((S) (set! summary #t)
+                 (scan-next (cdr args)))
             (else (usage)
                   (exit 0)))
           (begin
@@ -450,7 +454,7 @@
 
 (define (main db-name bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              . input-files)
+              summary . input-files)
   (call-with-values
     (lambda () (sqlite3 db-name))
     (lambda (db-fold-left db-close)
