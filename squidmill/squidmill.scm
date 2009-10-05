@@ -211,8 +211,8 @@
                      "'unixepoch', 'localtime')"
                      (if summary "total(size), total(elapsed)"
                                  "size, elapsed")
-                     (and ident-pat "ident")
-                     (and uri-pat "uri"))
+                     (and (not summary) ident-pat "ident")
+                     (and (not summary) uri-pat "uri"))
                   "from ("
                   (make-select-stm stime etime minsize maxsize
                                    ident-pat uri-pat)
