@@ -193,7 +193,7 @@
 
 (define (report db-fold-left out-proc seed
                 stime etime minsize maxsize ident-pat uri-pat
-                limit)
+                limit summary)
   (let ((select-stm (make-select-stm
                       "max(timestamp)"
                       stime etime minsize maxsize ident-pat uri-pat))
@@ -208,9 +208,11 @@
                     (if uri-pat ", uri" ""))
                   "from ("
                   (make-select-stm
-                    (string-append
-                      "strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
-                               "'unixepoch', 'localtime')")
+                    (if (not summary)
+                      (string-append
+                        "strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
+                                 "'unixepoch', 'localtime')")
+                      "max(timestamp)")
                     stime etime minsize maxsize ident-pat uri-pat)
                   "("
                   (make-union-select select-stm where-stm group-stm)
@@ -232,7 +234,15 @@
       (db-fold-left
         (make-out-proc out-proc seed limit)
         (values seed 0)
-        stm))))
+        (if summary
+          (string-append
+            "select strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
+                            "'unixepoch', 'localtime'), "
+                   "sum(size), "
+                   "sum(elapsed), "
+                   "count(*)"
+                   " from ( " stm " ) as summary")
+          stm)))))
 
 (define (s-report-output seed . cols)
   (write cols)
