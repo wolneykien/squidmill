@@ -125,7 +125,8 @@
   (daily->monthly db-fold-left))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
-  (if (or stime etime ident-pat uri-pat)
+  (if (or stime etime (and ident-pat (not (eq? #t ident-pat)))
+                      (and uri-pat (not (eq? #t  uri-pat))))
     (string-append
       "where "
       ((make-string-join " and ")
