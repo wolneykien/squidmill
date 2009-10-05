@@ -161,10 +161,9 @@
     (string-append "limit " (number->string limit))
     ""))
 
-(define (make-select-stm time-field stime etime minsize maxsize
-                         ident-pat uri-pat)
+(define (make-select-stm stime etime minsize maxsize ident-pat uri-pat)
   (string-append
-    "select " time-field " as timestamp,"
+    "select max(timestamp) as timestamp,"
     " sum(size) as size, sum(elapsed) as elapsed"
     (if ident-pat ", ident" "")
     (if uri-pat ", uri" "")
@@ -198,25 +197,24 @@
                 stime etime minsize maxsize ident-pat uri-pat
                 limit summary)
   (let ((select-stm (make-select-stm
-                      "max(timestamp)"
                       stime etime minsize maxsize ident-pat uri-pat))
         (where-stm (make-where-stm stime etime ident-pat uri-pat))
         (group-stm (make-group-stm ident-pat uri-pat))
         (order-stm (make-order-stm ident-pat uri-pat))
         (limit-stm (make-limit-stm (and limit (+ limit 1)))))
     (let ((stm ((make-string-join " ")
-                  (string-append
-                    "select timestamp, size, elapsed"
-                    (if ident-pat ", ident" "")
-                    (if uri-pat ", uri" ""))
+                  "select"
+                  ((make-string-join ", ")
+                     "strftime('%d.%m.%Y %H:%M:%S'"
+                     (if summary "max(timestamp)" "timestamp")
+                     "'unixepoch', 'localtime')"
+                     (if summary "total(size), total(elapsed)"
+                                 "size, elapsed")
+                     (and ident-pat "ident")
+                     (and uri-pat "uri"))
                   "from ("
-                  (make-select-stm
-                    (if (not summary)
-                      (string-append
-                        "strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
-                                 "'unixepoch', 'localtime')")
-                      "max(timestamp)")
-                    stime etime minsize maxsize ident-pat uri-pat)
+                  (make-select-stm stime etime minsize maxsize
+                                   ident-pat uri-pat)
                   "("
                   (make-union-select select-stm where-stm group-stm)
                   ") as log"
@@ -233,19 +231,11 @@
                                        "size <= "
                                        (number->string maxsize)))))
                     "")
-                  order-stm limit-stm)))
+                  (and (not summary) order-stm limit-stm))))
       (db-fold-left
         (make-out-proc out-proc seed limit)
         (values seed 0)
-        (if summary
-          (string-append
-            "select strftime('%d.%m.%Y %H:%M:%S', max(timestamp), "
-                            "'unixepoch', 'localtime'), "
-                   "sum(size), "
-                   "sum(elapsed), "
-                   "count(*)"
-                   " from ( " stm " ) as summary")
-          stm)))))
+        stm))))
 
 (define (s-report-output seed . cols)
   (write cols)
