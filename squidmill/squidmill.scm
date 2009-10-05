@@ -377,6 +377,7 @@
       "                      them optionally"
       "    -u [PATTERN]      Count statistic for individual URIs filtering"
       "                      them optionally"
+      "    -S                Calculate final summary"
       "    -l NUMBER         Limit report by that number of rows"))
   (newline))
 
