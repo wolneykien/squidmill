@@ -135,11 +135,11 @@
          (and ident-pat
               (not (eq? #t ident-pat))
               (> (string-length ident-pat) 0)
-              (string-append "ident like '%" ident-pat "%'"))
+              (string-append "ident like " ident-pat))
          (and uri-pat
               (not (eq? #t uri-pat))
               (> (string-length uri-pat) 0)
-              (string-append "uri like '%" uri-pat "%'"))))
+              (string-append "uri like " uri-pat))))
     ""))
 
 (define (make-union-select select-stm . tail-stms)
