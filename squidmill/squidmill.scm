@@ -132,9 +132,13 @@
          (and etime
               (string-append "timestamp <= strftime('%s', '"
                              etime "', 'utc')"))
-         (and ident-pat (> (string-length ident-pat) 0)
+         (and ident-pat
+              (not (eq? #t ident-pat))
+              (> (string-length ident-pat) 0)
               (string-append "ident like '%" ident-pat "%'"))
-         (and uri-pat (> (string-length uri-pat) 0)
+         (and uri-pat
+              (not (eq? #t uri-pat))
+              (> (string-length uri-pat) 0)
               (string-append "uri like '%" uri-pat "%'"))))
     ""))
 
@@ -402,7 +406,7 @@
             ((i) (if (or (null? (cdr args))
                           (opt-key? (cadr args)))
                     (begin
-                      (set! ident-pat "%")
+                      (set! ident-pat #t)
                       (scan-next (cdr args)))
                     (begin
                       (set! ident-pat (cadr args))
@@ -410,7 +414,7 @@
             ((u) (if (or (null? (cdr args))
                           (opt-key? (cadr args)))
                     (begin
-                      (set! uri-pat "%")
+                      (set! uri-pat #t)
                       (scan-next (cdr args)))
                     (begin
                       (set! uri-pat (cadr args))
