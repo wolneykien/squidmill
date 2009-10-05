@@ -480,7 +480,7 @@
           (if (let ((ret (or (not report-format)
                          (do-report db-fold-left report-format
                                     sdate edate minsize maxsize
-                                    ident-pat uri-pat limit))))
+                                    ident-pat uri-pat limit summary))))
                 (db-close)
                 ret)
             (exit 0)
