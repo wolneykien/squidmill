@@ -61,7 +61,10 @@
           (list (string-append "select" " "
                   ((make-string-join ", ")
                      timestamp
-                     (sqlquote ident)
+                     (if (or (not ident)
+                             (equal? "-" ident))
+                       (sqlquote client)
+                       (sqlquote ident))
                      (sqlquote (extract-domain uri))
                      size
                      elapsed)))))
