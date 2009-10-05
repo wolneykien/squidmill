@@ -248,9 +248,11 @@
     (display
       (apply (make-string-join sep)
         (map (lambda (a)
-               (if (not (string? a))
-                 (object->string a)
-                 a))
+               (cond
+                 ((string? a) a)
+                 ((integer? a)
+                  (number->string (if (exact? a) a (inexact->exact a))))
+                 (else (object->string a))))
           cols)))
     (newline)
     seed))
