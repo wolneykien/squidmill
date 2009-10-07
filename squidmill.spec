@@ -45,6 +45,8 @@ data are included.
 - Exit with exit code 100 iff reporting limit is exceeded.
 - Use glob patterns.
 - Summary action added.
+- Pre-uninstall script: stop the service and remove it from startup
+  configuration
 
 * Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt2
 - Squidmill service update: create DB file directory if necessary.
