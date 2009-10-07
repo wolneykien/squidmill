@@ -30,6 +30,10 @@ data are included.
 %install
 %makeinstall initdir=%buildroot%{_initdir}
 
+%preun
+/sbin/service squidmill stop
+/sbin/chkconfig --del squidmill
+
 %files
 %_sbindir/squidmill
 %_sysconfdir/cron.daily/squidmill
