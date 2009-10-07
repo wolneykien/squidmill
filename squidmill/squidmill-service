@@ -60,7 +60,7 @@ start()
                  --make-pidfile \
                  --lockfile "$LOCKFILE" \
                  --displayname squidmill \
-                 -- /bin/su -s /bin/sh -l squid \
+                 -- /bin/su -s /bin/sh -l "$SQUIDLOGUSER" \
                             -c "'/usr/sbin/squidmill -d \"$DBFILE\" -B 1 -F \"$SQUIDLOGFILE\"'"
 }
 
