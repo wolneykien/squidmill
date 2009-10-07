@@ -236,7 +236,8 @@
                                        "size <= "
                                        (number->string maxsize)))))
                     "")
-                  (and (not summary) order-stm limit-stm))))
+                  (and (not summary) order-stm)
+                  (and (not summary) limit-stm))))
       (db-fold-left
         (make-out-proc out-proc seed limit)
         (values seed 0)
