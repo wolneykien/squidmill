@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.0
-Release: alt3
+Release: alt4
 
 Source: %name-%version.tar.gz
 
@@ -31,8 +31,7 @@ data are included.
 %makeinstall initdir=%buildroot%{_initdir}
 
 %preun
-/sbin/service squidmill stop
-/sbin/chkconfig --del squidmill
+%preun_service squidmill
 
 %files
 %_sbindir/squidmill
@@ -40,6 +39,9 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Fri Oct 09 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt4
+- Use preun_service macro.
+
 * Thu Oct 01 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt3
 - Fix error in Scheme output to stdout.
 - Exit with exit code 100 iff reporting limit is exceeded.
