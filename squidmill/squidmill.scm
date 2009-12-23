@@ -88,7 +88,7 @@
   (init-table db-fold-left "monthly_log"))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
-  (db-fold-left values #f "begin exclusive transaction")
+  (db-fold-left values #f "begin immediate transaction")
   (let ((threshold-condition
           (string-append "timestamp <= strftime('%s', 'now', '-"
                          age-note
