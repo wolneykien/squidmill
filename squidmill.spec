@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.0
-Release: alt4
+Release: alt5
 
 Source: %name-%version.tar.gz
 
@@ -39,6 +39,9 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Wed Dec 23 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt5
+- Use shared transactions (closes: 22606)
+
 * Fri Oct 09 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt4
 - Use preun_service macro.
 
