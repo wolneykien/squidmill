@@ -40,7 +40,7 @@ data are included.
 
 %changelog
 * Wed Dec 23 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt5
-- Use shared transactions (closes: 22606)
+- Use immediate transactions (closes: 22606)
 
 * Fri Oct 09 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt4
 - Use preun_service macro.
