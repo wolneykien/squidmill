@@ -5,7 +5,7 @@ PREFIX="${1-.}"
 fill_log()
 {
     t=1
-    while [ $t -lt 100 ]; do
+    while [ $t -lt 1000 ]; do
         echo "$t.000    152 127.0.0.1 TCP_HIT/200 3349752 GET ftp://ftp.altlinux.org/pub/distributions/ALTLinux/Sisyphus/noarch/RPMS.classic/vim-common-7.2.315-alt1.noarch.rpm - NONE/- application/x-rpm" >> access.log
         sleep 0.1
         t=$(( t + 1 ))
@@ -24,11 +24,11 @@ mill() {
     mill_pid=$!
     echo $mill_pid > mill.pid
     wait $mill_pid
-    echo $0 > mill.done
+    echo $? > mill.done
     rm mill.pid
 }
 
-rm dbwrite.log
+rm -f dbwrite.log
 rm -f squidmill.db
 rm -f mill.pid
 touch mill.pid
