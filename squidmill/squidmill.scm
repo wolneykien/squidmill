@@ -359,6 +359,7 @@
       "General options:"
       "    -d DB-FILE        Database file name"
       "    -h                Print this screen"
+      "    -D                Debug mode on"
       " "
       "Update options:"
       "    -B NUMBER         Bulk-insert size (default is 256)"
@@ -396,12 +397,13 @@
         (limit #f)
         (round-data #f)
         (report #f)
-        (summary #f))
+        (summary #f)
+        (debug #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report
-                      summary)
+                      summary debug)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
@@ -449,6 +451,8 @@
                  (scan-next (cdr args)))
             ((S) (set! summary #t)
                  (scan-next (cdr args)))
+            ((D) (set! debug #t)
+                 (scan-next (cdr args)))
             (else (usage)
                   (exit 0)))
           (begin
@@ -464,12 +468,17 @@
          (else (list (make-text-report-output "\t") #f)))
       report-args)))
 
+(define (make-db-fold-left-debug db-fold-left)
+  (lambda (fn seed stm)
+    (db-fold-left-debug fn seed stm)))
+
 (define (main db-name bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              summary . input-files)
+              summary debug . input-files)
   (call-with-values
     (lambda () (sqlite3 db-name))
     (lambda (db-fold-left db-close)
+      (if debug (set! db-fold-left (make-db-fold-left-debug db-fold-left)))
       (with-exception-catcher
         (lambda (e)
           (db-close)
