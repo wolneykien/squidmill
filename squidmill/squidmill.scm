@@ -100,6 +100,17 @@
       table-name "_timestamp_ident "
       "on " table-name " (timestamp desc, ident asc)")))
 
+(define (table-exists? db-fold-left table-name)
+  (with-sqlite3-exception-catcher
+    (lambda (code msg . args)
+      (if (eq? code 1)
+        #f
+        (apply raise-sqlite3-error code msg args)))
+    (lambda ()
+      (db-fold-left values #f
+        (string-append "select * from " table-name " limit 1"))
+      #t)))
+
 (define (init-db db-fold-left)
   (init-table db-fold-left "access_log")
   (init-table db-fold-left "hourly_log")
