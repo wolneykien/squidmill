@@ -47,11 +47,30 @@
      (pp debug-stm)
      (db-fold-left ,fn ,seed debug-stm)))
 
+(define (begin-immediate db-fold-left)
+  (db-fold-left values #f "begin immediate"))
+
+(define (begin-wait-immediate db-fold-left)
+  (with-sqlite3-exception-catcher
+    (lambda (code msg . args)
+      (if (eq? code 5)
+        (begin
+          (thread-sleep! 0.5)
+          (begin-wait-immediate db-fold-left))
+        (apply raise-sqlite3-error code msg args)))
+    (lambda ()
+      (begin-immediate db-fold-left))))
+
+(define (commit db-fold-left)
+  (db-fold-left values #f "commit"))
+
 (define (bulk-insert db-fold-left bulk)
+  (begin-wait-immediate db-fold-left)
   (db-fold-left values #f
     (string-append
       "insert or ignore into access_log" " "
-      (apply (make-string-join " union ") bulk))))
+      (apply (make-string-join " union ") bulk)))
+  (commit db-fold-left))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
@@ -88,7 +107,7 @@
   (init-table db-fold-left "monthly_log"))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
-  (db-fold-left values #f "begin immediate transaction")
+  (begin-wait-immediate db-fold-left)
   (let ((threshold-condition
           (string-append "timestamp <= strftime('%s', 'now', '-"
                          age-note
@@ -105,7 +124,7 @@
     (db-fold-left values #f
       (string-append "delete from " from-table " where "
                      threshold-condition)))
-  (db-fold-left values #f "commit transaction"))
+  (commit db-fold-left))
 
 (define (log->hourly db-fold-left)
   (round-log db-fold-left "access_log" "hourly_log"
