@@ -47,8 +47,11 @@
      (pp debug-stm)
      (db-fold-left ,fn ,seed debug-stm)))
 
+(define (stub . args)
+  (values #f #f))
+
 (define (begin-immediate db-fold-left)
-  (db-fold-left values #f "begin immediate"))
+  (db-fold-left stub #f "begin immediate"))
 
 (define (begin-wait-immediate db-fold-left)
   (with-sqlite3-exception-catcher
@@ -62,11 +65,11 @@
       (begin-immediate db-fold-left))))
 
 (define (commit db-fold-left)
-  (db-fold-left values #f "commit"))
+  (db-fold-left stub #f "commit"))
 
 (define (bulk-insert db-fold-left bulk)
   (begin-wait-immediate db-fold-left)
-  (db-fold-left values #f
+  (db-fold-left stub #f
     (string-append
       "insert or ignore into access_log" " "
       (apply (make-string-join " union ") bulk)))
@@ -89,12 +92,12 @@
                      elapsed)))))
 
 (define (init-table db-fold-left table-name)
-  (db-fold-left values #f
+  (db-fold-left stub #f
     (string-append
       "create table if not exists " table-name " "
       "(timestamp double, ident text, uri text, size integer, "
        "elapsed long)"))
-  (db-fold-left values #f
+  (db-fold-left stub #f
     (string-append
       "create unique index if not exists "
       table-name "_timestamp_ident "
@@ -107,7 +110,7 @@
         #f
         (apply raise-sqlite3-error code msg args)))
     (lambda ()
-      (db-fold-left values #f
+      (db-fold-left stub #f
         (string-append "select * from " table-name " limit 1"))
       #t)))
 
@@ -123,7 +126,7 @@
           (string-append "timestamp <= strftime('%s', 'now', '-"
                          age-note
                          "')")))
-    (db-fold-left values #f
+    (db-fold-left stub #f
       (string-append
         "insert or replace into " to-table " "
         "select min(timestamp), ident, uri, sum(size), sum(elapsed) "
@@ -132,7 +135,7 @@
         "group by strftime('" time-template "', timestamp, 'unixepoch'), "
         "ident, uri "
         "order by 1 desc"))
-    (db-fold-left values #f
+    (db-fold-left stub #f
       (string-append "delete from " from-table " where "
                      threshold-condition)))
   (commit db-fold-left))
