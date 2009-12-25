@@ -75,13 +75,26 @@
 (define (commit db-fold-left)
   (db-fold-left stub #f "commit"))
 
-(define (bulk-insert db-fold-left bulk)
+(define (rollback db-fold-left)
+  (db-fold-left stub #f "rollback"))
+
+(define (with-transaction db-fold-left thunk)
   (begin-wait-immediate db-fold-left)
-  (db-fold-left stub #f
-    (string-append
-      "insert or ignore into access_log" " "
-      (apply (make-string-join " union ") bulk)))
-  (commit db-fold-left))
+  (with-exception-catcher
+    (lambda (e)
+      (rollback db-fold-left)
+      (raise e))
+    (lambda ()
+      (thunk)
+      (commit db-fold-left))))
+
+(define (bulk-insert db-fold-left bulk)
+  (with-transaction db-fold-left
+    (lambda ()
+      (db-fold-left stub #f
+        (string-append
+          "insert or ignore into access_log" " "
+          (apply (make-string-join " union ") bulk))))))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
@@ -133,24 +146,24 @@
     (init-table db-fold-left "monthly_log")))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
-  (begin-wait-immediate db-fold-left)
-  (let ((threshold-condition
-          (string-append "timestamp <= strftime('%s', 'now', '-"
-                         age-note
-                         "')")))
-    (db-fold-left stub #f
-      (string-append
-        "insert or replace into " to-table " "
-        "select min(timestamp), ident, uri, sum(size), sum(elapsed) "
-        "from " from-table " "
-        "where " threshold-condition " "
-        "group by strftime('" time-template "', timestamp, 'unixepoch'), "
-        "ident, uri "
-        "order by 1 desc"))
-    (db-fold-left stub #f
-      (string-append "delete from " from-table " where "
-                     threshold-condition)))
-  (commit db-fold-left))
+  (with-transaction db-fold-left
+    (lambda ()
+      (let ((threshold-condition
+            (string-append "timestamp <= strftime('%s', 'now', '-"
+                           age-note
+                           "')")))
+      (db-fold-left stub #f
+        (string-append
+          "insert or replace into " to-table " "
+          "select min(timestamp), ident, uri, sum(size), sum(elapsed) "
+          "from " from-table " "
+          "where " threshold-condition " "
+          "group by strftime('" time-template "', timestamp, 'unixepoch'), "
+          "ident, uri "
+          "order by 1 desc"))
+      (db-fold-left stub #f
+        (string-append "delete from " from-table " where "
+                       threshold-condition))))))
 
 (define (log->hourly db-fold-left)
   (round-log db-fold-left "access_log" "hourly_log"
