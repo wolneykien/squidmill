@@ -115,10 +115,14 @@
       #t)))
 
 (define (init-db db-fold-left)
-  (init-table db-fold-left "access_log")
-  (init-table db-fold-left "hourly_log")
-  (init-table db-fold-left "daily_log")
-  (init-table db-fold-left "monthly_log"))
+  (if (not (table-exists? db-fold-left "access_log"))
+    (init-table db-fold-left "access_log"))
+  (if (not (table-exists? db-fold-left "hourly_log"))
+    (init-table db-fold-left "hourly_log"))
+  (if (not (table-exists? db-fold-left "daily_log"))
+    (init-table db-fold-left "daily_log"))
+  (if (not (table-exists? db-fold-left "monthly_log"))
+    (init-table db-fold-left "monthly_log")))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
   (begin-wait-immediate db-fold-left)
