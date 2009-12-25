@@ -50,19 +50,27 @@
 (define (stub . args)
   (values #f #f))
 
-(define (begin-immediate db-fold-left)
-  (db-fold-left stub #f "begin immediate"))
+(define (begin-immediate db-fold-left comment)
+  (db-fold-left stub #f
+    (string-append "begin immediate"
+                   (if comment
+                     (string-append " /* " comment "*/")
+                     ""))))
 
 (define (begin-wait-immediate db-fold-left)
-  (with-sqlite3-exception-catcher
-    (lambda (code msg . args)
-      (if (eq? code 5)
-        (begin
-          (thread-sleep! 0.5)
-          (begin-wait-immediate db-fold-left))
-        (apply raise-sqlite3-error code msg args)))
-    (lambda ()
-      (begin-immediate db-fold-left))))
+  (let try ((t 1))
+    (with-sqlite3-exception-catcher
+      (lambda (code msg . args)
+        (if (eq? code 5)
+          (begin
+            (thread-sleep! 0.5)
+            (try (+ t 1)))
+          (apply raise-sqlite3-error code msg args)))
+      (lambda ()
+        (begin-immediate db-fold-left
+                         (and (> t 1)
+                              (string-append "try "
+                                             (number->string t))))))))
 
 (define (commit db-fold-left)
   (db-fold-left stub #f "commit"))
