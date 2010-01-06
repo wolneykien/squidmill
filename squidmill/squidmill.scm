@@ -385,7 +385,8 @@
           (let ((bulk 
                    (with-exception-catcher
                      (lambda (e)
-                       (if (not (null? (cdr e)))
+                       (if (not (or (null? (cdr e))
+                                    (sqlite3-error? (car e))))
                          (bulk-insert db-fold-left (cdr e)))
                        (if follow
                          (send-signal (process-pid port)
