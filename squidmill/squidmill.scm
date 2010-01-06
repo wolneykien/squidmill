@@ -61,7 +61,8 @@
   (let try ((t 1))
     (with-sqlite3-exception-catcher
       (lambda (code msg . args)
-        (if (eq? code 5)
+        (if (or (eq? code 1)
+                (eq? code 5))
           (begin
             (thread-sleep! 0.5)
             (try (+ t 1)))
