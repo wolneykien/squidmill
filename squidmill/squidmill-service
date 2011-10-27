@@ -21,7 +21,10 @@ start()
 {
     if [ -z "$SQUIDLOGFILE" ] || [ -z "$SQUIDLOGUSER" ]; then
         if [ -n "$SQUIDCONF" ] && [ -f "$SQUIDCONF" ]; then
-            res=`awk '/^access_log/ { print $2 ":" $3; }' "$SQUIDCONF"`
+            res="`sed -n -e 's/^[[:space:]]*access_log[[:space:]]\+"\?\(\/.*\)"\?[[:space:]]\+\([^[:space:]]\+\).*$/\1:\2/p' "$SQUIDCONF" | tail -1`"
+            if [ -z "$res" ]; then
+		res="`sed -n -e 's/^#[[:space:]]*access_log[[:space:]]\+"\?\(\/.*\)"\?[[:space:]]\+\([^[:space:]]\+\).*$/\1:\2/p' "$SQUIDCONF" | tail -1`"
+            fi
             if [ -z "$res" ]; then
                 printf "Squidmill: read access.log location from $SQUIDCONF"
                 failure "access_log not found"
