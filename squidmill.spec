@@ -1,6 +1,6 @@
 Name: squidmill
-Version: 2.0
-Release: alt5
+Version: 2.1
+Release: alt1
 
 Source: %name-%version.tar.gz
 
@@ -39,6 +39,9 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Thu Oct 27 2011 Paul Wolneykien <manowar@altlinux.ru> 2.1-alt1
+- Read the default access_log value if it isn't set.
+
 * Wed Dec 23 2009 Paul Wolneykien <manowar@altlinux.ru> 2.0-alt5
 - Use immediate transactions (closes: 22606)
 
