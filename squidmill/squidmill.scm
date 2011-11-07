@@ -13,7 +13,7 @@
 	(display (caddr ex) (current-error-port))
 	(newline (current-error-port)))
       (begin
-	(desplay ex (current-error-port))
+	(display ex (current-error-port))
 	(newline (current-error-port))))
   (raise ex))
 
