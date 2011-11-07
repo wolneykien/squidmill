@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.1
-Release: alt1
+Release: alt2
 
 Source: %name-%version.tar.gz
 
@@ -39,6 +39,9 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Tue Nov 08 2011 Paul Wolneykien <manowar@altlinux.ru> 2.1-alt2
+- Report exceptions to the stdandard error port.
+
 * Thu Oct 27 2011 Paul Wolneykien <manowar@altlinux.ru> 2.1-alt1
 - Read the default access_log value if it isn't set.
 
