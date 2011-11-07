@@ -4,6 +4,19 @@
         knil
         (kons (car list1) (f (cdr list1))))))
 
+(define (report-and-raise ex)
+  (if (eq? (car ex) 'sqlite3-err)
+      (begin
+	(display "SQLite3 error (" (current-error-port))
+	(display (cadr ex) (current-error-port))
+	(display "): " (current-error-port))
+	(display (caddr ex) (current-error-port))
+	(newline (current-error-port)))
+      (begin
+	(desplay ex (current-error-port))
+	(newline (current-error-port))))
+  (raise ex))
+
 (define (string-tokenize txtval charset)
   (fold-right (lambda (w tail)
                 (if (null? w)
@@ -566,7 +579,7 @@
   (lambda (e)
     (if (signal-exception? e)
       (exit 0)
-      (raise e)))
+      (report-and-raise e)))
     (lambda ()
       (let ((args
               (with-exception-catcher
