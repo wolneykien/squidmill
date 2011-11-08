@@ -562,9 +562,9 @@
             (apply add-logs db-fold-left bulk-size follow input-files))
           (if round-data (round-all-logs db-fold-left))
           (if (let ((ret (or (not report-format)
-                         (do-report db-fold-left report-format
-                                    sdate edate minsize maxsize
-                                    ident-pat uri-pat limit summary))))
+			     (do-report db-fold-left report-format
+					sdate edate minsize maxsize
+					ident-pat uri-pat limit summary))))
                 (db-close)
                 ret)
             (exit 0)
