@@ -5,7 +5,7 @@
         (kons (car list1) (f (cdr list1))))))
 
 (define (report-and-raise ex)
-  (if (eq? (car ex) 'sqlite3-err)
+  (if (and (pair? ex) (eq? (car ex) 'sqlite3-err))
       (begin
 	(display "SQLite3 error (" (current-error-port))
 	(display (cadr ex) (current-error-port))
