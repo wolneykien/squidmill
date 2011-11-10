@@ -63,32 +63,33 @@
 (define (stub . args)
   (values #f #f))
 
-(define (db-try-exec-wait-on-busy db-fold-left stm)
-  (let try ((t 1))
-    (with-sqlite3-exception-catcher
-      (lambda (code msg . args)
-        (if (eq? code 5)
-          (begin
-            (thread-sleep! 0.5)
-            (try (+ t 1)))
-          (apply raise-sqlite3-error code msg args)))
-      (lambda ()
-        (db-fold-left stub #f
-	      (string-append stm
-			     (if (> t 1)
-				 (string-append " /* try "
-						(number->string t)
-						" */")
-				 "")))))))
+(define (make-db-fold-left-retry-on-busy db-fold-left)
+  (lambda (fn seed stm)
+    (let try ((t 1))
+      (with-sqlite3-exception-catcher
+       (lambda (code msg . args)
+	 (if (eq? code 5)
+	     (begin
+	       (thread-sleep! 0.5)
+	       (try (+ t 1)))
+	     (apply raise-sqlite3-error code msg args)))
+       (lambda ()
+	 (db-fold-left fn seed
+		       (string-append stm
+				      (if (> t 1)
+					  (string-append " /* try "
+							 (number->string t)
+							 " */")
+					  ""))))))))
 
 (define (begin-wait-immediate db-fold-left)
-  (db-try-exec-wait-on-busy db-fold-left "begin immediate"))
+  (db-fold-left stub #f "begin immediate"))
 
 (define (commit db-fold-left)
-  (db-try-exec-wait-on-busy db-fold-left "commit"))
+  (db-fold-left stub #f "commit"))
 
 (define (rollback db-fold-left)
-  (db-try-exec-wait-on-busy db-fold-left "rollback"))
+  (db-fold-left stub #f "rollback"))
 
 (define (with-transaction db-fold-left thunk)
   (begin-wait-immediate db-fold-left)
@@ -549,6 +550,7 @@
   (call-with-values
     (lambda () (sqlite3 db-name))
     (lambda (db-fold-left db-close)
+      (set! db-fold-left (make-db-fold-left-retry-on-busy db-fold-left))
       (if debug (set! db-fold-left (make-db-fold-left-debug db-fold-left)))
       (with-exception-catcher
         (lambda (e)
