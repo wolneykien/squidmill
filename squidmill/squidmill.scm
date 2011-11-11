@@ -80,7 +80,9 @@
        (lambda (e)
 	 (report-exception e))
        (lambda ()
-	 (*db-close*))))
+	 (*db-close*)
+	 (display "Database closed successfully" (current-error-port))
+	 (newline (current-error-port)))))
   (if *db-name*
       (call-with-values
         (lambda ()
