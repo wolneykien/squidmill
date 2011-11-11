@@ -102,12 +102,15 @@
 (define (stub . args)
   (values #f #f))
 
+(define *max-retries* 10)
+
 (define (make-db-fold-left-retry-on-busy db-fold-left)
   (lambda (fn seed stm)
     (let try ((t 1))
       (with-sqlite3-exception-catcher
        (lambda (code msg . args)
-	 (if (eq? code 5)
+	 (if (and (< t *max-retries*)
+		  (eq? code 5))
 	     (begin
 	       (thread-sleep! 0.5)
 	       (try (+ t 1)))
@@ -130,11 +133,15 @@
 (define (db-rollback db-fold-left)
   (db-fold-left stub #f "rollback"))
 
+(define *max-reopens* 100)
+
 (define (with-transaction db-fold-left thunk)
   (let try ((t 1))
     (with-sqlite3-exception-catcher
      (lambda (code msg . args)
-       (if (eq? code 1)
+       (if (and (< t *max-reopens*)
+		(or (eq? code 1)
+		    (eq? code 5)))
 	   (begin
 	     (report-exception (list 'sqlite3-err code msg))
 	     (display (string-append "Try to reopen the DB ("
