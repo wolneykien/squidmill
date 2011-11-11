@@ -136,7 +136,7 @@
      (lambda (code msg . args)
        (if (eq? code 1)
 	   (begin
-	     (report-exception (list code msg args))
+	     (report-exception (list 'sqlite3-err code msg))
 	     (display (string-append "Try to reopen the DB ("
 				     (number->string t)
 				     ")")
