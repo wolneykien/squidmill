@@ -143,6 +143,8 @@
 		      (current-error-port))
 	     (newline (current-error-port))
 	     (db-reopen)
+	     (display "DB reopened successfully" (current-error-port))
+	     (newline (current-error-port))
 	     (thread-sleep! 0.5)
 	     (try (+ t 1)))
 	   (apply raise-sqlite3-error code msg args)))
