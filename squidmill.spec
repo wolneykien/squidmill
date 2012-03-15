@@ -2,7 +2,7 @@ Name: squidmill
 Version: 2.2
 Release: alt1
 
-Source: %name-%version.tar.gz
+Source: %name-%version.tar
 
 Packager: Paul Wolneykien <manowar@altlinux.ru>
 
