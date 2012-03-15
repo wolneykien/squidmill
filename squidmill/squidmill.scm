@@ -126,8 +126,11 @@
 							 " */")
 					  ""))))))))
 
-(define (db-begin db-fold-left)
+(define (db-begin-immediate db-fold-left)
   (db-fold-left stub #f "begin immediate"))
+
+(define (db-begin-deferred db-fold-left)
+  (db-fold-left stub #f "begin deferred"))
 
 (define (db-commit db-fold-left)
   (db-fold-left stub #f "commit"))
@@ -137,7 +140,7 @@
 
 (define *max-reopens* 100)
 
-(define (with-transaction db-fold-left thunk)
+(define (with-transaction db-fold-left begin-proc commit-proc rollback-proc thunk)
   (let try ((t 1))
     (with-sqlite3-exception-catcher
      (lambda (code msg . args)
@@ -158,17 +161,17 @@
 	     (try (+ t 1)))
 	   (apply raise-sqlite3-error code msg args)))
      (lambda ()
-       (db-begin db-fold-left)
+       (begin-proc db-fold-left)
        (with-exception-catcher
 	(lambda (e)
-	  (db-rollback db-fold-left)
+	  (rollback-proc db-fold-left)
 	  (raise e))
 	(lambda ()
 	  (thunk)
-	  (db-commit db-fold-left)))))))
+	  (commit-proc db-fold-left)))))))
 
 (define (bulk-insert db-fold-left bulk)
-  (with-transaction db-fold-left
+  (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
     (lambda ()
       (db-fold-left stub #f
         (string-append
@@ -225,7 +228,7 @@
     (init-table db-fold-left "monthly_log")))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
-  (with-transaction db-fold-left
+  (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
     (lambda ()
       (let ((threshold-condition
             (string-append "timestamp <= strftime('%s', 'now', '-"
@@ -375,10 +378,12 @@
                     "")
                   (and (not summary) order-stm)
                   (and (not summary) limit-stm))))
-      (db-fold-left
-        (make-out-proc out-proc seed limit)
-        (values seed 0)
-        stm))))
+      (with-transaction db-fold-left db-begin-deferred db-rollback db-rollback
+        (lambda ()
+	  (db-fold-left
+            (make-out-proc out-proc seed limit)
+            (values seed 0)
+            stm))))))
 
 (define (s-report-output seed . cols)
   (write cols)
