@@ -1,6 +1,6 @@
 Name: squidmill
-Version: 2.1
-Release: alt2
+Version: 2.2
+Release: alt1
 
 Source: %name-%version.tar.gz
 
@@ -39,6 +39,11 @@ data are included.
 %_initdir/squidmill
 
 %changelog
+* Tue Mar 13 2012 Paul Wolneykien <manowar@altlinux.ru> 2.2-alt1
+- Use "sqlite_master" table to query for table existence.
+- Reopen the DB in the case of DB logic error.
+- Retry any statement on DB busy including commit and rollback.
+
 * Tue Nov 08 2011 Paul Wolneykien <manowar@altlinux.ru> 2.1-alt2
 - Report exceptions to the stdandard error port.
 
