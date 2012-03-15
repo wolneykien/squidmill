@@ -167,8 +167,9 @@
 	  (rollback-proc db-fold-left)
 	  (raise e))
 	(lambda ()
-	  (thunk)
-	  (commit-proc db-fold-left)))))))
+          (let ((res (thunk)))
+            (commit-proc db-fold-left)
+            res)))))))
 
 (define (bulk-insert db-fold-left bulk)
   (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
