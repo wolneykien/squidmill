@@ -207,15 +207,13 @@
       "on " table-name " (timestamp desc, ident asc)")))
 
 (define (table-exists? db-fold-left table-name)
-  (with-sqlite3-exception-catcher
-    (lambda (code msg . args)
-      (if (eq? code 1)
-        #f
-        (apply raise-sqlite3-error code msg args)))
+  (with-transaction db-fold-left db-begin-deferred db-rollback db-rollback
     (lambda ()
-      (db-fold-left stub #f
-        (string-append "select * from " table-name " limit 1"))
-      #t)))
+      (db-fold-left
+	(lambda (seed name)
+	  (values #f (equal? name table-name)))
+	#f
+        (string-append "select name from sqlite_master where type='table' and name='" table-name "'")))))
 
 (define (init-db db-fold-left)
   (if (not (table-exists? db-fold-left "access_log"))
