@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.2
-Release: alt1
+Release: alt2
 
 Source: %name-%version.tar
 
@@ -41,6 +41,10 @@ data are included.
 %_sysconfdir/sysconfig/squidmill
 
 %changelog
+* Thu Nov 29 2012 Paul Wolneykien <manowar@altlinux.ru> 2.2-alt2
+- Add the systemd unit file and configuration (environment)
+  file (closes: 28087).
+
 * Tue Mar 13 2012 Paul Wolneykien <manowar@altlinux.ru> 2.2-alt1
 - Use "sqlite_master" table to query for table existence.
 - Reopen the DB in the case of DB logic error.
