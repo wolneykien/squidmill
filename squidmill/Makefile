@@ -4,6 +4,7 @@ libdir=$(prefix)/lib
 sbindir=$(prefix)/sbin
 sysconfdir=/etc
 initdir=$(sysconfdir)/rc.d/init.d
+unitdir=/lib/systemd/system
 
 squidmill: squidmill.o
 	gcc squidmill.o squidmill_.o -Wl,-rpath,$(libdir)/gambit -lgambc \
@@ -21,6 +22,8 @@ install:
 	install -p -m0755 -D squidmill $(sbindir)/squidmill
 	install -p -m0755 -D squidmill-daily $(sysconfdir)/cron.daily/squidmill
 	install -p -m0755 -D squidmill-service $(initdir)/squidmill
+	install -p -m0644 -D squidmill.service $(unitdir)/squidmill.service
+	install -p -m0644 -D squidmill.conf $(sysconfdir)/sysconfig/squidmill
 
 clean:
 	rm -f *.o *.c squidmill

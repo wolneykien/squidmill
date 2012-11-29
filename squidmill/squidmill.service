@@ -1,0 +1,11 @@
+
+[Unit]
+Description=Squid access logfile processor
+
+[Service]
+EnvironmentFile=/etc/sysconfig/squidmill
+User=$SQUIDLOGUSER
+ExecStart=/usr/sbin/squidmill -d $DBFILE -B 1 -F $SQUIDLOGFILE
+
+[Install]
+WantedBy=multi-user.target

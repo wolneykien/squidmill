@@ -28,7 +28,7 @@ data are included.
 %make includedir=%{_includedir} libdir=%{_libdir}
 
 %install
-%makeinstall initdir=%buildroot%{_initdir}
+%makeinstall initdir=%buildroot%{_initdir} unitdir=%buildroot%_unitdir
 
 %preun
 %preun_service squidmill
@@ -37,6 +37,8 @@ data are included.
 %_sbindir/squidmill
 %_sysconfdir/cron.daily/squidmill
 %_initdir/squidmill
+%_unitdir/squidmill.service
+%_sysconfdir/sysconfig/squidmill
 
 %changelog
 * Tue Mar 13 2012 Paul Wolneykien <manowar@altlinux.ru> 2.2-alt1
