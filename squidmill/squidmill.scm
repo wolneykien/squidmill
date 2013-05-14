@@ -63,11 +63,20 @@
 (define *db-name* #f)
 (define *db-fold-left* #f)
 (define *db-close* #f)
+(define *db-mutex*
+  (make-mutex 'db-mutex))
 
 (define (db-fold-left-global fn seed stm)
   (if *db-fold-left*
-      (*db-fold-left* fn seed stm)
-      (error "Global db-fold-left proc is not set")))
+    (with-exception-catcher
+      (lambda (e)
+        (mutex-unlock! *db-mutex*)
+        (report-and-raise e))
+      (lambda ()
+        (mutex-lock! *db-mutex*)
+        (*db-fold-left* fn seed stm)
+        (mutex-unlock! *db-mutex*)))
+    (error "Global db-fold-left proc is not set")))
 
 (define (db-close-global)
   (if *db-close*
@@ -262,6 +271,26 @@
   (log->hourly db-fold-left)
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
+
+(define *rounder* #f)
+(define (init-rounder period db-fold-left)
+  (if (not *rounder*)
+    (begin
+      (set! *rounder*
+        (make-thread
+          (lambda ()
+            (thread-sleep! period)
+            (round-all-logs db-fold-left))
+          "rounder"))
+      (thread-start! *rounder*))))
+
+(define (rounder-foreground)
+  (if *rounder*
+    (thread-join! *rounder*)))
+
+(define (terminate-rounder)
+  (if *rounder*
+    (thread-terminate! *rounder*)))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
   (if (or stime etime (and ident-pat
@@ -508,7 +537,8 @@
       "    -F                Follow mode"
       " "
       "Rounding options:"
-      "    -R                Round old data to save space (and reporting time)"
+      "    -R [PERIOD]       Round old data to save space (and reporting time)."
+      "                      Do rounding every PERIOD mins, if specified"
       " "
       "Reporting options:"
       "    -r [FORMAT]       Report format. Default is plaintext."
@@ -579,8 +609,14 @@
                       (scan-next (cddr args)))))
             ((l) (set! limit (string->number (cadr args)))
                   (scan-next (cddr args)))
-            ((R) (set! round-data #t)
-                  (scan-next (cdr args)))
+            ((R) (if (or (null? (cdr args))
+                          (opt-key? (cadr args)))
+                    (begin
+                      (set! round-data #t)
+                      (scan-next (cdr args)))
+                    (begin
+                      (set! round-data (string->number (cadr args)))
+                      (scan-next (cddr args)))))
             ((r) (if (or (null? (cdr args))
                           (opt-key? (cadr args)))
                     (begin
@@ -629,16 +665,20 @@
           (raise e))
         (lambda ()
           (init-db db-fold-left)
+          (if (and round-data (not (eq? round-data #t)))
+            (init-rounder (* round-data 60) db-fold-left))
           (if (not (null? input-files))
             (apply add-logs db-fold-left bulk-size follow input-files))
-          (if round-data (round-all-logs db-fold-left))
+          (if (eq? round-data #t) (round-all-logs db-fold-left))
           (if (let ((ret (or (not report-format)
 			     (do-report db-fold-left report-format
 					sdate edate minsize maxsize
 					ident-pat uri-pat limit summary))))
                 (db-close)
                 ret)
-            (exit 0)
+            (begin
+              (rounder-foreground)
+              (exit 0))
             (exit 100))))))
 
 (signal-set-exception! *SIGHUP*)
@@ -649,8 +689,12 @@
 (with-exception-catcher
   (lambda (e)
     (if (signal-exception? e)
-      (exit 0)
-      (report-and-raise e)))
+      (begin
+        (terminate-rounder)
+        (exit 0))
+      (begin
+        (terminate-rounder)
+        (report-and-raise e))))
     (lambda ()
       (let ((args
               (with-exception-catcher
