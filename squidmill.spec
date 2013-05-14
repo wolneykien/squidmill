@@ -1,6 +1,6 @@
 Name: squidmill
-Version: 2.2
-Release: alt4
+Version: 2.3
+Release: alt1
 
 Source: %name-%version.tar
 
@@ -40,6 +40,13 @@ data are included.
 %_sysconfdir/sysconfig/squidmill
 
 %changelog
+* Tue May 14 2013 Paul Wolneykien <manowar@altlinux.ru> 2.3-alt1
+- Make use of the rounding period value in the service files.
+- Add configuration option for rounding period, 1440 min by default.
+- Rounding period of 0 means no rounding.
+- Remove the anacron daily job.
+- Implement in-process rounding.
+
 * Mon Apr 08 2013 Paul Wolneykien <manowar@altlinux.ru> 2.2-alt4
 - Rebuild with a new version of Gambit.
 
