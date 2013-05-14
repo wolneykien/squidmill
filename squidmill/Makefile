@@ -20,7 +20,6 @@ squidmill.c: squidmill.scm
 
 install:
 	install -p -m0755 -D squidmill $(sbindir)/squidmill
-	install -p -m0755 -D squidmill-daily $(sysconfdir)/cron.daily/squidmill
 	install -p -m0755 -D squidmill-service $(initdir)/squidmill
 	install -p -m0644 -D squidmill.service $(unitdir)/squidmill.service
 	install -p -m0644 -D squidmill.conf $(sysconfdir)/sysconfig/squidmill

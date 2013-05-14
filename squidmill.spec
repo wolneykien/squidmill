@@ -35,7 +35,6 @@ data are included.
 
 %files
 %_sbindir/squidmill
-%_sysconfdir/cron.daily/squidmill
 %_initdir/squidmill
 %_unitdir/squidmill.service
 %_sysconfdir/sysconfig/squidmill
