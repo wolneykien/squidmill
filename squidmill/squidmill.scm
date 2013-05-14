@@ -665,7 +665,7 @@
           (raise e))
         (lambda ()
           (init-db db-fold-left)
-          (if (and round-data (not (eq? round-data #t)))
+          (if (and round-data (not (eq? round-data #t)) (> round-data 0))
             (init-rounder (* round-data 60) db-fold-left))
           (if (not (null? input-files))
             (apply add-logs db-fold-left bulk-size follow input-files))
