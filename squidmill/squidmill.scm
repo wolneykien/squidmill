@@ -71,8 +71,9 @@
         (report-and-raise e))
       (lambda ()
         (mutex-lock! *db-mutex*)
-        (db-fold-left fn seed stm)
-        (mutex-unlock! *db-mutex*)))))
+        (let ((res (db-fold-left fn seed stm)))
+          (mutex-unlock! *db-mutex*)
+          res)))))
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
