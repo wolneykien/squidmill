@@ -224,8 +224,10 @@
       (set! *rounder*
         (make-thread
           (lambda ()
-            (thread-sleep! period)
-            (round-all-logs db-fold-left))
+            (let loop ()
+              (thread-sleep! period)
+              (round-all-logs db-fold-left)
+              (loop)))
           "rounder"))
       (thread-start! *rounder*))))
 
