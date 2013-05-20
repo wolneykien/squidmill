@@ -60,50 +60,19 @@
         uri))))
 
 
-(define *db-name* #f)
-(define *db-fold-left* #f)
-(define *db-close* #f)
 (define *db-mutex*
   (make-mutex 'db-mutex))
 
-(define (db-fold-left-global fn seed stm)
-  (if *db-fold-left*
+(define (make-db-fold-left-thread-safe db-fold-left)
+  (lambda (fn seed stm)
     (with-exception-catcher
       (lambda (e)
         (mutex-unlock! *db-mutex*)
         (report-and-raise e))
       (lambda ()
         (mutex-lock! *db-mutex*)
-        (*db-fold-left* fn seed stm)
-        (mutex-unlock! *db-mutex*)))
-    (error "Global db-fold-left proc is not set")))
-
-(define (db-close-global)
-  (if *db-close*
-      (*db-close*)
-      (error "Global db-close proc is not set")))
-
-(define (db-reopen)
-  (if *db-close*
-      (with-exception-catcher
-       (lambda (e)
-	 (report-exception e))
-       (lambda ()
-	 (*db-close*)
-	 (display "Database closed successfully" (current-error-port))
-	 (newline (current-error-port)))))
-  (if *db-name*
-      (call-with-values
-        (lambda ()
-	  (sqlite3 *db-name*))
-	(lambda (db-fold-left db-close)
-	  (set! *db-fold-left* db-fold-left)
-	  (set! *db-close* db-close)))
-      (error "Global db-name is not set")))
-
-(define (db-open db-name)
-  (set! *db-name* db-name)
-  (db-reopen))
+        (db-fold-left fn seed stm)
+        (mutex-unlock! *db-mutex*)))))
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
@@ -147,38 +116,16 @@
 (define (db-rollback db-fold-left)
   (db-fold-left stub #f "rollback"))
 
-(define *max-reopens* 100)
-
 (define (with-transaction db-fold-left begin-proc commit-proc rollback-proc thunk)
-  (let try ((t 1))
-    (with-sqlite3-exception-catcher
-     (lambda (code msg . args)
-       (if (and (< t *max-reopens*)
-		(or (eq? code 1)
-		    (eq? code 5)))
-	   (begin
-	     (report-exception (list 'sqlite3-err code msg))
-	     (display (string-append "Try to reopen the DB ("
-				     (number->string t)
-				     ")")
-		      (current-error-port))
-	     (newline (current-error-port))
-	     (db-reopen)
-	     (display "DB reopened successfully" (current-error-port))
-	     (newline (current-error-port))
-	     (thread-sleep! 0.5)
-	     (try (+ t 1)))
-	   (apply raise-sqlite3-error code msg args)))
-     (lambda ()
-       (begin-proc db-fold-left)
-       (with-exception-catcher
-	(lambda (e)
-	  (rollback-proc db-fold-left)
-	  (raise e))
-	(lambda ()
-          (let ((res (thunk)))
-            (commit-proc db-fold-left)
-            res)))))))
+  (begin-proc db-fold-left)
+  (with-exception-catcher
+   (lambda (e)
+     (rollback-proc db-fold-left)
+     (raise e))
+   (lambda ()
+     (let ((res (thunk)))
+       (commit-proc db-fold-left)
+       res))))
 
 (define (bulk-insert db-fold-left bulk)
   (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
@@ -217,13 +164,11 @@
       "on " table-name " (timestamp desc, ident asc)")))
 
 (define (table-exists? db-fold-left table-name)
-  (with-transaction db-fold-left db-begin-deferred db-rollback db-rollback
-    (lambda ()
-      (db-fold-left
-	(lambda (seed name)
-	  (values #f (equal? name table-name)))
-	#f
-        (string-append "select name from sqlite_master where type='table' and name='" table-name "'")))))
+  (db-fold-left
+    (lambda (seed name)
+      (values #f (equal? name table-name)))
+    #f
+    (string-append "select name from sqlite_master where type='table' and name='" table-name "'")))
 
 (define (init-db db-fold-left)
   (if (not (table-exists? db-fold-left "access_log"))
@@ -653,33 +598,39 @@
 (define (main db-name bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug . input-files)
-  (let ((db-fold-left (make-db-fold-left-retry-on-busy
-		       (if debug
-			   (make-db-fold-left-debug db-fold-left-global)
-			   db-fold-left-global)))
-	(db-close db-close-global))
-      (db-open db-name)
-      (with-exception-catcher
-        (lambda (e)
-          (db-close)
-          (raise e))
-        (lambda ()
-          (init-db db-fold-left)
-          (if (and round-data (not (eq? round-data #t)) (> round-data 0))
-            (init-rounder (* round-data 60) db-fold-left))
-          (if (not (null? input-files))
-            (apply add-logs db-fold-left bulk-size follow input-files))
-          (if (eq? round-data #t) (round-all-logs db-fold-left))
-          (if (let ((ret (or (not report-format)
-			     (do-report db-fold-left report-format
-					sdate edate minsize maxsize
-					ident-pat uri-pat limit summary))))
-                (db-close)
-                ret)
-            (begin
-              (rounder-foreground)
-              (exit 0))
-            (exit 100))))))
+  (call-with-values
+    (lambda ()
+      (sqlite3 db-name))
+    (lambda (db-fold-left db-close)
+      (let ((db-fold-left
+              (make-db-fold-left-retry-on-busy
+                (if debug
+                  (make-db-fold-left-debug
+                    (make-db-fold-left-thread-safe db-fold-left))
+                  db-fold-left)))
+            (db-close db-close))
+	(with-exception-catcher
+	  (lambda (e)
+	    (db-close)
+	    (raise e))
+	  (lambda ()
+	    (init-db db-fold-left)
+	    (if (and round-data (not (eq? round-data #t)))
+		(init-rounder (* round-data 60) db-fold-left))
+	    (if (not (null? input-files))
+		(apply add-logs db-fold-left bulk-size follow input-files))
+	    (if (eq? round-data #t) (round-all-logs db-fold-left))
+	    (if (or (not report-format)
+		    (do-report db-fold-left report-format
+			       sdate edate minsize maxsize
+			       ident-pat uri-pat limit summary))
+		(begin
+		  (rounder-foreground)
+		  (db-close)
+		  (exit 0))
+		(begin
+		  (db-close)
+		  (exit 100)))))))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
