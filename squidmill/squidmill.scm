@@ -5,21 +5,42 @@
         knil
         (kons (car list1) (f (cdr list1))))))
 
+(define (display-error prefix code message . args)
+  (let ((port (or (and args (pair? args) (car args))
+		  (current-error-port))))
+    (if prefix
+	(display prefix port)
+	(display "Error" port))
+    (if code
+	(begin
+	  (display " (" port)
+	  (display code port)
+	  (display "): " port))
+	(display ": " port))
+    (display message port)
+    (newline port)))
+
 (define (report-exception ex)
-  (if (and (pair? ex) (eq? (car ex) 'sqlite3-err))
-      (begin
-	(display "SQLite3 error (" (current-error-port))
-	(display (cadr ex) (current-error-port))
-	(display "): " (current-error-port))
-	(display (caddr ex) (current-error-port))
-	(newline (current-error-port)))
-      (begin
-	(display ex (current-error-port))
-	(newline (current-error-port)))))
+  (cond
+    ((sqlite3-error? ex)
+     (display-error "SQLite3 error"
+		    (sqlite3-error-code ex)
+		    (sqlite3-error-message ex)
+		    (current-error-port)))
+    ((domain-socket-exception? ex)
+     (display-error "Socket error"
+		    (sqlite3-error-code ex)
+		    (sqlite3-error-message ex)
+		    (current-error-port)))
+    (else
+      (display-error #f #f ex))))
 
 (define (report-and-raise ex)
   (report-exception ex)
   (raise ex))
+
+(define (report-and-ignore ex)
+  (report-exception ex))
 
 (define (string-tokenize txtval charset)
   (fold-right (lambda (w tail)
@@ -218,27 +239,14 @@
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
-(define *rounder* #f)
 (define (init-rounder period db-fold-left)
-  (if (not *rounder*)
-    (begin
-      (set! *rounder*
-        (make-thread
-          (lambda ()
-            (let loop ()
-              (thread-sleep! period)
-              (round-all-logs db-fold-left)
-              (loop)))
-          "rounder"))
-      (thread-start! *rounder*))))
-
-(define (rounder-foreground)
-  (if *rounder*
-    (thread-join! *rounder*)))
-
-(define (terminate-rounder)
-  (if *rounder*
-    (thread-terminate! *rounder*)))
+  (make-thread
+    (lambda ()
+      (let loop ()
+        (thread-sleep! period)
+        (round-all-logs db-fold-left)
+        (loop)))
+    "rounder"))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
   (if (or stime etime (and ident-pat
@@ -477,6 +485,7 @@
       " "
       "General options:"
       "    -d DB-FILE        Database file name"
+      "    -c PATH           Path to the communication socket"
       "    -h                Print this screen"
       "    -D                Debug mode on"
       " "
@@ -506,6 +515,7 @@
 (define (scan-args . command-line)
   (let ((input-files '())
         (db-name "squidmill.db")
+        (socket-path "squidmill.sock")
         (bulk-size 256)
         (follow #f)
         (sdate #f)
@@ -521,13 +531,15 @@
         (debug #f))
     (let scan-next ((args command-line))
       (if (null? args)
-        (append (list db-name bulk-size follow sdate edate ident-pat
+        (append (list db-name socket-path bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report
                       summary debug)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
             ((d) (set! db-name (cadr args))
+                  (scan-next (cddr args)))
+            ((c) (set! socket-path (cadr args))
                   (scan-next (cddr args)))
             ((B) (set! bulk-size (string->number (cadr args)))
                   (scan-next (cddr args)))
@@ -598,42 +610,122 @@
   (lambda (fn seed stm)
     (db-fold-left-debug fn seed stm)))
 
-(define (main db-name bulk-size follow sdate edate ident-pat
+(define *socket-backlog* 100)
+(define *socket-timeout* 5000)
+
+
+(define (close-all db-close socket rounder)
+  (if db-close
+    (with-exception-catcher report-and-ignore
+      (lambda ()
+        (db-close))))
+  (if socket
+    (with-exception-catcher report-and-ignore
+      (lambda ()
+        (if (domain-socket? socket)
+          (delete-domain-socket socket)
+          (close-port socket))))))
+
+(define (adjust-db-fold-left db-fold-left debug)
+  (make-db-fold-left-retry-on-busy
+    (if debug
+      (make-db-fold-left-debug
+        (make-db-fold-left-thread-safe db-fold-left))
+      (make-db-fold-left-thread-safe db-fold-left))))
+
+(define (make-ipc-db-fold-left socket debug)
+  (input-port-timeout-set! socket (/ *socket-timeout* 1000))
+  (lambda (fn seed stm)
+    (write stm socket)
+    (newline socket)
+    (force-output socket 1)
+    (let loop ((seed seed) (row (read socket)))
+      (if (string? row)
+	(raise (string-append "Server error: " row))
+	(if (and (list? row) (not (null? row)))
+	  (call-with-values
+	    (lambda ()
+	      (apply fn seed row))
+	    (lambda (continue? new-seed)
+	      (if (not continue?)
+		new-seed
+		(loop new-seed (read socket))))))))))
+
+(define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug . input-files)
   (call-with-values
     (lambda ()
-      (sqlite3 db-name))
-    (lambda (db-fold-left db-close)
-      (let ((db-fold-left
-              (make-db-fold-left-retry-on-busy
-                (if debug
-                  (make-db-fold-left-debug
-                    (make-db-fold-left-thread-safe db-fold-left))
-                  db-fold-left)))
-            (db-close db-close))
-	(with-exception-catcher
-	  (lambda (e)
-	    (db-close)
-	    (raise e))
-	  (lambda ()
-	    (init-db db-fold-left)
-	    (if (and round-data (not (eq? round-data #t)))
-		(init-rounder (* round-data 60) db-fold-left))
+      (let ((socket
+	     (and socket-path
+		  (with-exception-catcher
+		    (lambda (e)
+		      (if (and (domain-socket-exception? e)
+			       (= 98 (domain-socket-exception-code e)))
+			(with-exception-catcher
+			  (lambda (e)
+			    (if (and (domain-socket-exception? e)
+				     (or (= 2 (domain-socket-exception-code e))
+					 (= 111 (domain-socket-exception-code e))))
+			      (begin
+				(if debug
+				  (report-exception e))
+				#f)
+			      (raise e)))
+			  (lambda ()
+			    (domain-socket-connect socket-path *socket-timeout*)))
+			(raise e)))
+		    (lambda ()
+		      (make-domain-socket socket-path *socket-backlog*))))))
+        (with-exception-catcher
+          (lambda (e)
+            (close-all #f socket #f)
+            (raise e))
+          (lambda ()
+            (if (or (not socket)
+		    (domain-socket? socket))
+	      (receive (db-fold-left db-close) (sqlite3 db-name)
+	        (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
+		  (values db-fold-left db-close socket)))
+	      (if (and socket (port? socket))
+		(values (make-ipc-db-fold-left socket debug)
+			(lambda ()
+			  (close-port socket))
+			#f)
+		(values #f #f #f)))))))
+    (lambda (db-fold-left db-close socket)
+      (let* ((db-at-hand (and db-fold-left (or (not socket) (domain-socket? socket))))
+	     (rounder (and round-data (not (eq? round-data #t))
+			   (if db-at-hand
+			     (init-rounder (* round-data 60) db-fold-left)
+			     (raise "No DB at hand. Rounding isn't possible")))))
+        (with-exception-catcher
+          (lambda (e)
+            (close-all db-close socket rounder)
+            (raise e))
+          (lambda ()
+            (if db-at-hand
+              (init-db db-fold-left))
+            (if rounder
+	      (thread-start! rounder))
 	    (if (not (null? input-files))
-		(apply add-logs db-fold-left bulk-size follow input-files))
-	    (if (eq? round-data #t) (round-all-logs db-fold-left))
-	    (if (or (not report-format)
-		    (do-report db-fold-left report-format
-			       sdate edate minsize maxsize
-			       ident-pat uri-pat limit summary))
-		(begin
-		  (rounder-foreground)
-		  (db-close)
-		  (exit 0))
-		(begin
-		  (db-close)
-		  (exit 100)))))))))
+	      (if db-fold-left
+		(apply add-logs db-fold-left bulk-size follow input-files)
+		(raise "No DB or socket connection. Adding data isn't possible")))
+	    (if (eq? round-data #t)
+	      (if db-at-hand
+		(round-all-logs db-fold-left)
+		(raise "No DB at hand. Rounding isn't possible")))
+	    (if report-format
+	      (if db-fold-left
+		(do-report db-fold-left report-format
+			   sdate edate minsize maxsize
+			   ident-pat uri-pat limit summary)
+		(raise "No DB or socket connection. Reporting isn't possible")))
+	    (if rounder
+	      (thread-join! rounder))
+	    (close-all db-close socket rounder)
+	    (exit 0)))))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
@@ -643,19 +735,16 @@
 (with-exception-catcher
   (lambda (e)
     (if (signal-exception? e)
-      (begin
-        (terminate-rounder)
-        (exit 0))
-      (begin
-        (terminate-rounder)
-        (report-and-raise e))))
-    (lambda ()
-      (let ((args
-              (with-exception-catcher
-                (lambda (e) #f)
-                (lambda () (apply scan-args (cdr (command-line)))))))
-        (if args
-          (apply main args)
-          (begin
-            (usage)
-            (exit 1))))))
+      (exit 0)
+      (report-and-raise e)))
+  (lambda ()
+    (let ((args (with-exception-catcher
+		  (lambda (e)
+		    #f)
+		  (lambda ()
+		    (apply scan-args (cdr (command-line)))))))
+      (if args
+	(apply main args)
+	(begin
+	  (usage)
+	  (exit 1))))))
