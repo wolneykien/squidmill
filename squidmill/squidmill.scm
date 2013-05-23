@@ -622,9 +622,11 @@
   (if socket
     (with-exception-catcher report-and-ignore
       (lambda ()
-        (if (domain-socket? socket)
-          (delete-domain-socket socket)
-          (close-port socket))))))
+	(delete-domain-socket socket))))
+  (if rounder
+      (with-exception-catcher report-and-ignore
+        (lambda ()
+	  (thread-terminate! rounder)))))
 
 (define (adjust-db-fold-left db-fold-left debug)
   (make-db-fold-left-retry-on-busy
@@ -682,8 +684,7 @@
             (close-all #f socket #f)
             (raise e))
           (lambda ()
-            (if (or (not socket)
-		    (domain-socket? socket))
+            (if (or (not socket) (domain-socket? socket))
 	      (receive (db-fold-left db-close) (sqlite3 db-name)
 	        (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
 		  (values db-fold-left db-close socket)))
@@ -694,7 +695,7 @@
 			#f)
 		(values #f #f #f)))))))
     (lambda (db-fold-left db-close socket)
-      (let* ((db-at-hand (and db-fold-left (or (not socket) (domain-socket? socket))))
+      (let* ((db-at-hand (and db-fold-left (or socket (not socket-path))))
 	     (rounder (and round-data (not (eq? round-data #t))
 			   (if db-at-hand
 			     (init-rounder (* round-data 60) db-fold-left)
