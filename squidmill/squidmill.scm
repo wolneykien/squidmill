@@ -20,20 +20,22 @@
     (display message port)
     (newline port)))
 
-(define (report-exception ex)
-  (cond
-    ((sqlite3-error? ex)
-     (display-error "SQLite3 error"
-		    (sqlite3-error-code ex)
-		    (sqlite3-error-message ex)
-		    (current-error-port)))
-    ((domain-socket-exception? ex)
-     (display-error "Socket error"
-		    (sqlite3-error-code ex)
-		    (sqlite3-error-message ex)
-		    (current-error-port)))
-    (else
-      (display-error #f #f ex))))
+(define (report-exception ex . args)
+  (let ((port (or (and args (pair? args) (car args))
+		  (current-error-port))))
+    (cond
+     ((sqlite3-error? ex)
+      (display-error "SQLite3 error"
+		     (sqlite3-error-code ex)
+		     (sqlite3-error-message ex)
+		     port))
+     ((domain-socket-exception? ex)
+      (display-error "Socket error"
+		     (sqlite3-error-code ex)
+		     (sqlite3-error-message ex)
+		     port))
+     (else
+      (display-error #f #f ex port)))))
 
 (define (report-and-raise ex)
   (report-exception ex)
@@ -388,12 +390,22 @@
     (newline)
     seed))
 
+(define *read-log-timeout* 0.01)
+(define *read-log-delay* 0.01)
+
 (define (process-log proc port)
   (let ((bulk '()))
     (with-exception-catcher
       (lambda (e)
         (raise (cons e bulk)))
       (lambda ()
+	(input-port-timeout-set! port *read-log-timeout*
+	  (lambda ()
+	    (let* ((on-timeout
+		    (lambda ()
+		      (input-port-timeout-set! port *read-log-timeout* on-timeout)
+		      (thread-yield!))))
+	      (on-timeout))))
         (let loop ((ln (read-line port)))
           (if (not (eof-object? ln))
             (begin
@@ -514,8 +526,8 @@
 
 (define (scan-args . command-line)
   (let ((input-files '())
-        (db-name "squidmill.db")
-        (socket-path "squidmill.sock")
+        (db-name #f)
+        (socket-path #f)
         (bulk-size 256)
         (follow #f)
         (sdate #f)
@@ -613,7 +625,6 @@
 (define *socket-backlog* 100)
 (define *socket-timeout* 5000)
 
-
 (define (close-all db-close socket rounder)
   (if db-close
     (with-exception-catcher report-and-ignore
@@ -636,8 +647,9 @@
       (make-db-fold-left-thread-safe db-fold-left))))
 
 (define (make-ipc-db-fold-left socket debug)
-  (input-port-timeout-set! socket (/ *socket-timeout* 1000))
   (lambda (fn seed stm)
+    (if debug
+      (pp stm))
     (write stm socket)
     (newline socket)
     (force-output socket 1)
@@ -652,6 +664,46 @@
 	      (if (not continue?)
 		new-seed
 		(loop new-seed (read socket))))))))))
+
+(define *socket-listen-step-timeout* 10)
+
+(define (init-sql-server db-fold-left socket)
+  (make-thread
+   (lambda ()
+     (let a-loop ((client (domain-socket-accept socket *socket-listen-step-timeout*)))
+       (if (and client (port? client))
+	 (let ((send-and-raise
+		(lambda (e)
+		  (write (call-with-output-string ""
+		           (lambda (string-port)
+			     (report-exception e string-port)))
+			 client)
+		  (force-output client 1)
+		  (raise e))))
+	   (with-exception-catcher send-and-raise
+	     (lambda ()
+	       (thread-start!
+	         (make-thread
+		   (lambda ()
+		     (let r-loop ((stm (read client)))
+		       (if (not (eof-object? stm))
+			 (with-exception-catcher send-and-raise
+			   (lambda ()
+			     (db-fold-left
+			       (lambda (seed . args)
+				 (write args client)
+				 (newline client)
+				 (force-output client 1)
+				 (values #t seed))
+			       #f
+			       stm)
+			     (r-loop (read client)))))
+		       (close-port client)))
+		   (string-append "client "
+				  (number->string (time->seconds (current-time))))))))))
+       (thread-yield!)
+       (a-loop (domain-socket-accept socket *socket-listen-step-timeout*))))
+   "sql-server"))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
@@ -668,7 +720,8 @@
 			  (lambda (e)
 			    (if (and (domain-socket-exception? e)
 				     (or (= 2 (domain-socket-exception-code e))
-					 (= 111 (domain-socket-exception-code e))))
+					 (= 111 (domain-socket-exception-code e)))
+				     db-name)
 			      (begin
 				(if debug
 				  (report-exception e))
@@ -684,7 +737,7 @@
             (close-all #f socket #f)
             (raise e))
           (lambda ()
-            (if (or (not socket) (domain-socket? socket))
+            (if (and (or (not socket) (domain-socket? socket)) db-name)
 	      (receive (db-fold-left db-close) (sqlite3 db-name)
 	        (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
 		  (values db-fold-left db-close socket)))
