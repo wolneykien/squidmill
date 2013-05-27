@@ -247,7 +247,8 @@
       (let loop ()
         (thread-sleep! period)
         (round-all-logs db-fold-left)
-        (loop)))
+	(if (not (thread-receive 0 #f))
+	  (loop))))
     "rounder"))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
@@ -625,19 +626,21 @@
 (define *socket-backlog* 100)
 (define *socket-timeout* 5000)
 
-(define (close-all db-close socket rounder)
-  (if db-close
-    (with-exception-catcher report-and-ignore
-      (lambda ()
-        (db-close))))
-  (if socket
-    (with-exception-catcher report-and-ignore
-      (lambda ()
-	(delete-domain-socket socket))))
-  (if rounder
-      (with-exception-catcher report-and-ignore
-        (lambda ()
-	  (thread-terminate! rounder)))))
+(define (close-all . args)
+  (for-each (lambda (arg)
+	      (if arg
+		(with-exception-catcher report-and-ignore
+                  (lambda ()
+		    (cond
+		     ((thread? arg)
+		      (thread-send arg #t))
+		     ((domain-socket? arg)
+		      (delete-domain-socket arg))
+		     ((port? arg)
+		      (close-port arg))
+		     ((procedure? arg)
+		      (arg)))))))
+	    args))
 
 (define (adjust-db-fold-left db-fold-left debug)
   (make-db-fold-left-retry-on-busy
@@ -710,7 +713,8 @@
 		   (string-append "client "
 				  (number->string (time->seconds (current-time))))))))))
        (thread-yield!)
-       (a-loop (domain-socket-accept socket *socket-listen-step-timeout*))))
+       (if (not (thread-receive 0 #f))
+	 (a-loop (domain-socket-accept socket *socket-listen-step-timeout*)))))
    "sql-server"))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
@@ -760,16 +764,28 @@
 	     (rounder (and round-data (not (eq? round-data #t))
 			   (if db-at-hand
 			     (init-rounder (* round-data 60) db-fold-left)
-			     (raise "No DB at hand. Rounding isn't possible")))))
+			     (raise "No DB at hand. Rounding isn't possible"))))
+	     (sql-server (and socket db-fold-left
+			      (if db-at-hand
+				(init-sql-server db-fold-left socket debug)
+				(begin
+				  (if debug
+				    (begin
+				      (display "No DB at hand. SQL-server disabled"
+					       (current-error-port))
+				      (newline (current-error-port))))
+				  #f)))))
         (with-exception-catcher
           (lambda (e)
-            (close-all db-close socket rounder)
+            (close-all db-close sql-server rounder)
             (raise e))
           (lambda ()
             (if db-at-hand
               (init-db db-fold-left))
             (if rounder
 	      (thread-start! rounder))
+	    (if sql-server
+	      (thread-start! sql-server))
 	    (if (not (null? input-files))
 	      (if db-fold-left
 		(apply add-logs db-fold-left bulk-size follow input-files)
@@ -786,7 +802,9 @@
 		(raise "No DB or socket connection. Reporting isn't possible")))
 	    (if rounder
 	      (thread-join! rounder))
-	    (close-all db-close socket rounder)
+	    (if sql-server
+	      (thread-join! sql-server))
+	    (close-all db-close sql-server rounder)
 	    (exit 0)))))))
 
 (signal-set-exception! *SIGHUP*)
