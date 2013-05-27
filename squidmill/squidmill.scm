@@ -667,7 +667,7 @@
 
 (define *socket-listen-step-timeout* 10)
 
-(define (init-sql-server db-fold-left socket)
+(define (init-sql-server db-fold-left socket debug)
   (make-thread
    (lambda ()
      (let a-loop ((client (domain-socket-accept socket *socket-listen-step-timeout*)))
@@ -682,6 +682,10 @@
 		  (raise e))))
 	   (with-exception-catcher send-and-raise
 	     (lambda ()
+	       (if debug
+		 (begin
+		   (display "Client connected" (current-error-port))
+		   (newline (current-error-port))))
 	       (thread-start!
 	         (make-thread
 		   (lambda ()
@@ -697,8 +701,12 @@
 				 (values #t seed))
 			       #f
 			       stm)
-			     (r-loop (read client)))))
-		       (close-port client)))
+			     (r-loop (read client))))))
+		       (close-port client)
+		       (if debug
+			 (begin
+			   (display "Client disconnected" (current-error-port))
+			   (newline (current-error-port)))))
 		   (string-append "client "
 				  (number->string (time->seconds (current-time))))))))))
        (thread-yield!)
