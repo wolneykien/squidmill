@@ -22,41 +22,53 @@ do_insert_round()
     local max="$2"
     local start=$(date +%s)
     local end=$((start + period*max + period/2))
+    local exists=0
+    
+    if [ -f "$DIR/$PREFIX.access.log" ]; then
+        exists=1
+    else
+        touch "$DIR/$PREFIX.access.log"
+    fi
 
-    touch "$DIR/$PREFIX.access.log"
-
-    echo "Start squidmill in the background"
+    echo "Start squidmill in the background. See $PREFIX.squidmill.log for details"
     "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -R "$period_sec" -F "$DIR/$PREFIX.access.log" 2>"$DIR/$PREFIX.squidmill.log" &
     local squidmill_pid=$!
 
+    if [ $exists = 0 ]; then
+        echo "Write the records for $max.5 periods of $period seconds"
+    fi
     local time=$(date +%s)
     while [ $time -lt $end ]; do
-        j=0
-        while [ $j -lt $loop ]; do
-            print_log $i >>"$DIR/$PREFIX.access.log"
-            i=$((i + 1))
-	    j=$((j + 1))
-	done
-	# Wait for the squidmill to insert the written data
-    	time=$(date +%s)
-	while [ $time -lt $end ] && ! timestamp_inserted $((i - 1)) "$DIR/$PREFIX.squidmill.log"; do
-            sleep 0.2
-            time=$(date +%s)
-	done
+        if [ $exists = 0 ]; then
+            j=0
+            while [ $j -lt $loop ]; do
+                print_log $i >>"$DIR/$PREFIX.access.log"
+                i=$((i + 1))
+	        j=$((j + 1))
+	    done
+	fi
+	wait_for_squidmill "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.squidmill.log" $end
+        time=$(date +%s)
     done
 
     echo "Time is up: terminate squidmill" 
-    kill $squidmill_pid
-    wait $squidmill_pid
+    if ! terminate_squidmill $squidmill_pid +5; then
+        echo "Error: additional time is up"
+	return 1
+    fi
 }
 
 # Cleanup
-rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+rm -f "$DIR/$PREFIX.squidmill.log"
+if [ "${1:-}" = "-over" ]; then
+    echo "Keep the data files as specified"
+else
+    rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+fi
 
 # Run the test
-echo "Insert the records doing rounding every $PERIOD seconds for $COUNT.5 periods using the squidmill command"
-echo "See $PREFIX.squidmill.log for details"
 do_insert_round $PERIOD $COUNT
+
 file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then wc -l "$DIR/$PREFIX.access.log"; else echo 0; fi)
 if [ $file_count -gt 0 ]; then
     echo "$file_count records written successfully"
