@@ -20,3 +20,13 @@ print_log()
 	   "$1" "$ELAPSED" "$CLIENT" "$ACTION_CODE" "$SIZE" \
 	   "$METHOD" "$URI" "$IDENT" "$FROM" "$CONTENT"
 }
+
+# Queries the DB using the sqlite3 command.
+#
+# args: DB-filename SQL-query [column-number-to-cut]
+query_db()
+{
+    sqlite3 "$1" | if [ -n "${3:-}" ]; then cut -d '|' -f $3; else cat; fi <<EOF
+$2
+EOF
+}
