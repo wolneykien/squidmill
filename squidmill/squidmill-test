@@ -3,17 +3,19 @@
 SQUIDMILL="${1:-./squidmill}"
 export SQUIDMILL
 
-ls -1 "${0%/*}" | grep '^[0-9]\+-' | sort | (
+TEST_DIR="${2:-${0##*/}.d}"
+
+ls -1 "${TEST_DIR%/}" | grep '^[0-9]\+-' | sort | (
     passed=0
     failed=0
     while read -r test; do
-	if [ -x "${0%/*}/$test" ]; then
-	    echo -n "Executing ${0%/*}/$test..."
-	    if "${0%/*}/$test" 2>&1 | cat >"${0%/*}/$test.log"; then
+	if [ -x "${TEST_DIR%/}/$test" ]; then
+	    echo -n "Executing ${TEST_DIR%/}/$test..."
+	    if "${TEST_DIR%/}/$test" 1>"${TEST_DIR%/}/$test.log" 2>&1; then
 		echo " OK"
 		passed=$((passed + 1))
 	    else
-		echo " FAILED. See ${0%/*}/$test.log for details"
+		echo " FAILED. See ${TEST_DIR%/}/$test.log for details"
 		failed=$((failed + 1))
 	    fi
 	fi

@@ -26,7 +26,7 @@ install:
 	install -p -m0644 -D squidmill.conf $(sysconfdir)/sysconfig/squidmill
 
 check: squidmill
-	squidmill-test.d/run-tests ./squidmill
+	./squidmill-test ./squidmill squidmill-test.d
 
 clean:
 	rm -f *.o *.c squidmill
