@@ -15,9 +15,11 @@
 	(begin
 	  (display " (" port)
 	  (display code port)
-	  (display "): " port))
-	(display ": " port))
-    (display message port)
+	  (display ")" port)))
+    (if message
+      (begin
+	(display ": " port)
+	(display message port)))
     (newline port)))
 
 (define (report-exception ex . args)
@@ -31,8 +33,13 @@
 		     port))
      ((domain-socket-exception? ex)
       (display-error "Socket error"
-		     (sqlite3-error-code ex)
-		     (sqlite3-error-message ex)
+		     (domain-socket-exception-code ex)
+		     (domain-socket-exception-message ex)
+		     port))
+     ((signal-exception? ex)
+      (display-error "Signal received"
+		     (signal-exception-number ex)
+		     #f
 		     port))
      (else
       (display-error #f #f ex port)))))
@@ -786,6 +793,8 @@
 				  #f)))))
         (with-exception-catcher
           (lambda (e)
+	    (if (and debug (signal-exception? e))
+	      (report-exception e))
             (close-all db-close sql-server rounder)
             (raise e))
           (lambda ()
