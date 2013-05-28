@@ -25,8 +25,8 @@ install:
 	install -p -m0644 -D squidmill.service $(unitdir)/squidmill.service
 	install -p -m0644 -D squidmill.conf $(sysconfdir)/sysconfig/squidmill
 
-check:
-	squidmill-test.d/run-tests
+check: squidmill
+	squidmill-test.d/run-tests ./squidmill
 
 clean:
 	rm -f *.o *.c squidmill

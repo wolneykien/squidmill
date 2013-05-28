@@ -1,5 +1,8 @@
 #!/bin/sh -efu
 
+SQUIDMILL="${1:-./squidmill}"
+export SQUIDMILL
+
 ls -1 "${0%/*}" | grep '^[0-9]\+-' | sort | (
     passed=0
     failed=0

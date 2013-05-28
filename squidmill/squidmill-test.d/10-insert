@@ -17,7 +17,7 @@ do_insert()
     while [ $i -lt $max ]; do
 	print_log $i
 	i=$((i + 1))
-    done | squidmill -D -d "$PREFIX.db" -B 1 -F - 2>"$PREFIX.squidmill.log"
+    done | "$SQUIDMILL" -D -d "$PREFIX.db" -B 1 -F - 2>"$PREFIX.squidmill.log"
 }
 
 echo "Insert $COUNT records into the DB using squidmill command"
