@@ -22,7 +22,8 @@ do_insert()
 }
 
 # Cleanup
-rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.squidmill.log"
+rm -f "$DIR/$PREFIX.squidmill.log"
+[ "${1:-}" = "-over" ] || rm -f "$DIR/$PREFIX.db"
 
 # Run the test
 echo "Insert $COUNT records into the DB using squidmill command"

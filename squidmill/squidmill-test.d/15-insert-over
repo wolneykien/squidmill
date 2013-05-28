@@ -1,0 +1,17 @@
+#!/bin/sh -efu
+
+. "${0%/*}/squidmill-test-functions.sh"
+
+DIR="${0%/*}"
+PREFIX="${PREFIX:-${0##*/}}"
+
+# Cleanup
+rm -f "$DIR/$PREFIX.squidmill.log"
+rm -f "$DIR/$PREFIX.db"
+
+# Copy the previous test result
+cp "$DIR/10-insert.db" "$DIR/$PREFIX.db"
+
+# Run the test
+echo "Insert the same data over again"
+PREFIX="$PREFIX" "$DIR/10-insert" -over
