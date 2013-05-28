@@ -50,7 +50,7 @@ if [ -n "$db_sum_size" ]; then
     if [ $db_sum_size -eq $expected ]; then
 	echo "Size OK"
     else
-	echo "Size error: summary size is $db_sub_size, expected $expected"
+	echo "Size error: summary size is $db_sum_size, expected $expected"
 	exit 1
     fi
 else
