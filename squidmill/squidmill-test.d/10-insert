@@ -1,0 +1,51 @@
+#!/bin/sh -efu
+
+. "${0%/*}/squidmill-test-functions.sh"
+
+PREIX="${0##*/}"
+COUNT=1000
+
+# Inserts the specified number of records using
+# Squidmill.
+#
+# args: number-of-records
+do_insert()
+{
+    local max=$1
+    local i=0
+
+    while [ $i -lt $max ]; do
+	print_log $i
+	i=$((i + 1))
+    done | squidmill -D -d "$PREFIX.db" -B 1 -F - 2>"$PREFIX.squidmill.log"
+}
+
+echo "Insert $COUNT records into the DB using squidmill command"
+echo "See $PREFIX.squidmill.log for details"
+do_insert $COUNT
+
+echo "Query the DB to check the result"
+db_count=$(query_db "$PREFIX.db" "select count(*) from access_log")
+if [ -n "$db_count" ]; then
+    if [ $db_count -eq $COUNT ]; then
+	echo "Count OK"
+    else
+	echo "Count error: found $db_count records, expected $COUNT"
+	exit 1
+    fi
+    echo "Unable to get the record count"
+    exit 1
+fi
+
+db_sum_size=$(query_db "$PREFIX.db" "select sum(size) from access_log")
+if [ -n "db_sum_size" ]; then
+    expected=$((SIZE * COUNT))
+    if [ $db_sum_size -eq $expected ]; then
+	echo "Size OK"
+    else
+	echo "Size error: summary size is $db_sub_size, expected $expected"
+	exit 1
+    fi
+    echo "Unable to get the summary size"
+    exit 1
+fi
