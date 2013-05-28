@@ -673,6 +673,10 @@
 (define (init-sql-server db-fold-left socket debug)
   (make-thread
    (lambda ()
+     (if debug
+       (begin
+	 (display "Waiting for a client to connect..." (current-error-port))
+	 (newline (current-error-port))))
      (let a-loop ((client (domain-socket-accept socket *socket-listen-step-timeout*)))
        (if (and client (port? client))
 	 (let ((send-and-raise
@@ -711,7 +715,12 @@
 			   (display "Client disconnected" (current-error-port))
 			   (newline (current-error-port)))))
 		   (string-append "client "
-				  (number->string (time->seconds (current-time))))))))))
+				  (number->string (time->seconds (current-time))))))
+	       (if debug
+		 (begin
+		   (display "Instance started. Waiting for an other client to connect..."
+			    (current-error-port))
+		   (newline (current-error-port))))))))
        (thread-yield!)
        (if (not (thread-receive 0 #f))
 	 (a-loop (domain-socket-accept socket *socket-listen-step-timeout*)))))
