@@ -30,6 +30,9 @@ data are included.
 %install
 %makeinstall initdir=%buildroot%{_initdir} unitdir=%buildroot%_unitdir
 
+%check
+%make check
+
 %preun
 %preun_service squidmill
 
