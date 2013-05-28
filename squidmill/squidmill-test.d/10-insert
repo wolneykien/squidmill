@@ -2,7 +2,8 @@
 
 . "${0%/*}/squidmill-test-functions.sh"
 
-PREFIX="${0##*/}"
+DIR="${0%/*}"
+PREFIX="${PREFIX:-${0##*/}}"
 COUNT=1000
 
 # Inserts the specified number of records using
@@ -17,15 +18,19 @@ do_insert()
     while [ $i -lt $max ]; do
 	print_log $i
 	i=$((i + 1))
-    done | "$SQUIDMILL" -D -d "$PREFIX.db" -B 1 -F - 2>"$PREFIX.squidmill.log"
+    done | "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -F - 2>"$DIR/$PREFIX.squidmill.log"
 }
 
+# Cleanup
+rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.squidmill.log"
+
+# Run the test
 echo "Insert $COUNT records into the DB using squidmill command"
 echo "See $PREFIX.squidmill.log for details"
 do_insert $COUNT
 
 echo "Query the DB to check the result"
-db_count=$(query_db "$PREFIX.db" "select count(*) from access_log")
+db_count=$(query_db "$DIR/$PREFIX.db" "select count(*) from access_log")
 if [ -n "$db_count" ]; then
     if [ $db_count -eq $COUNT ]; then
 	echo "Count OK"
@@ -33,12 +38,13 @@ if [ -n "$db_count" ]; then
 	echo "Count error: found $db_count records, expected $COUNT"
 	exit 1
     fi
+else
     echo "Unable to get the record count"
     exit 1
 fi
 
-db_sum_size=$(query_db "$PREFIX.db" "select sum(size) from access_log")
-if [ -n "db_sum_size" ]; then
+db_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from access_log")
+if [ -n "$db_sum_size" ]; then
     expected=$((SIZE * COUNT))
     if [ $db_sum_size -eq $expected ]; then
 	echo "Size OK"
@@ -46,6 +52,7 @@ if [ -n "db_sum_size" ]; then
 	echo "Size error: summary size is $db_sub_size, expected $expected"
 	exit 1
     fi
+else
     echo "Unable to get the summary size"
     exit 1
 fi
