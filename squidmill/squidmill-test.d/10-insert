@@ -2,7 +2,7 @@
 
 . "${0%/*}/squidmill-test-functions.sh"
 
-PREIX="${0##*/}"
+PREFIX="${0##*/}"
 COUNT=1000
 
 # Inserts the specified number of records using
