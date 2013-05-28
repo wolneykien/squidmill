@@ -11,7 +11,7 @@ License: GPL
 Group: System/Configuration/Other
 
 # Automatically added by buildreq on Mon Apr 20 2009
-BuildRequires: gambit gambit-sqlite3-devel gambit-signal-devel gambit-dsock-devel rpm-macros-fillup sqlite3
+BuildRequires: gambit gambit-sqlite3-devel gambit-signal-devel gambit-dsock-devel rpm-macros-fillup sqlite3 /usr/bin/dc
 
 %description
 Squidmill unility can acquire and integrate information from

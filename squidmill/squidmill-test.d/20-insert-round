@@ -1,0 +1,119 @@
+#!/bin/sh -efu
+
+. "${0%/*}/squidmill-test-functions.sh"
+
+DIR="${0%/*}"
+PREFIX="${PREFIX:-${0##*/}}"
+PERIOD=4
+COUNT=4
+
+# Insert the records rounding the data periodically
+# using Squidmill for the specified number of rounding
+# periods.
+#
+# args: rounding-period number-of-periods
+do_insert_round()
+{
+    local period=$1
+    local period_sec=$(dc -e "5k $period 60 / p q" | sed -e 's/^\./0./')
+    local i=0
+    local j=0
+    local loop=100
+    local max="$2"
+    local start=$(date +%s)
+    local end=$((start + period*max + period/2))
+
+    touch "$DIR/$PREFIX.access.log"
+
+    echo "Start squidmill in the background"
+    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -R "$period_sec" -F "$DIR/$PREFIX.access.log" 2>"$DIR/$PREFIX.squidmill.log" &
+    local squidmill_pid=$!
+
+    local time=$(date +%s)
+    while [ $time -lt $end ]; do
+        j=0
+        while [ $j -lt $loop ]; do
+            print_log $i >>"$DIR/$PREFIX.access.log"
+            i=$((i + 1))
+	    j=$((j + 1))
+	done
+	# Wait for the squidmill to insert the written data
+    	time=$(date +%s)
+	while [ $time -lt $end ] && ! timestamp_inserted $((i - 1)) "$DIR/$PREFIX.squidmill.log"; do
+            sleep 0.2
+            time=$(date +%s)
+	done
+    done
+
+    echo "Time is up: terminate squidmill" 
+    kill $squidmill_pid
+    wait $squidmill_pid
+}
+
+# Cleanup
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+
+# Run the test
+echo "Insert the records doing rounding every $PERIOD seconds for $COUNT.5 periods using the squidmill command"
+echo "See $PREFIX.squidmill.log for details"
+do_insert_round $PERIOD $COUNT
+file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then wc -l "$DIR/$PREFIX.access.log"; else echo 0; fi)
+if [ $file_count -gt 0 ]; then
+    echo "$file_count records written successfully"
+else
+    echo "Error -- no records were written"
+    exit 1
+fi
+
+echo "Query the DB to check the result"
+access_count=$(query_db "$DIR/$PREFIX.db" "select count(*) from access_log")
+if [ -n "$access_count" ]; then
+    if [ $access_count -lt $file_count ]; then
+        echo "access_log count OK ($access_count)"
+    else
+	echo "access_log count error: found $access_count records, expected less than $file_count"
+	exit 1
+    fi
+else
+    echo "Unable to get the access_log record count"
+    exit 1
+fi
+
+access_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from access_log")
+if [ -n "$access_sum_size" ]; then
+    expected_max=$((SIZE * file_count))
+    if [ $access_sum_size -lt $expected_max ]; then
+        echo "access_log size OK ($access_sum_size)"
+    else
+	echo "access_log size error: size is $access_sum_size, expected less than $expected_max"
+	exit 1
+    fi
+else
+    echo "Unable to get the access_log summary size"
+    exit 1
+fi
+
+daily_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from daily_log")
+if [ -z "$daily_sum_size" ]; then
+    echo "Unable to get the daily_log summary size"
+    exit 1
+fi
+hourly_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from hourly_log")
+if [ -z "$hourly_sum_size" ]; then
+    echo "Unable to get the hourly_log summary size"
+    exit 1
+fi
+monthly_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from monthly_log")
+if [ -z "$monthly_sum_size" ]; then
+    echo "Unable to get the monthly_log summary size"
+    exit 1
+fi
+
+expected=$((SIZE * file_count))
+summary=$((access_sum_size + daily_sum_size + hourly_sum_size + monthly_sum_size))
+if [ $summary -eq $expected ]; then
+    echo "Overall size OK"
+else
+    echo "Overall size error: size is $summary, expected $expected"
+    exit 1
+fi

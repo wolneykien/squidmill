@@ -28,3 +28,13 @@ query_db()
 {
     sqlite3 -bail -batch -cmd "$2" -cmd ".quit" "$1" | if [ -n "${3:-}" ]; then cut -d '|' -f $3; else cat; fi
 }
+
+# Checks if a record with the specified timestamp was
+# inserted into the squidmill DB using squidmill debug
+# log file.
+#
+# args: timestamp debug-log-filename
+timestamp_inserted()
+{
+    tail "$2" | grep -q "^\"insert or ignore into access_log select $1.000,"
+}
