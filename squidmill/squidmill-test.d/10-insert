@@ -14,29 +14,61 @@ do_insert()
 {
     local max=$1
     local i=0
+    local exists=0
+    
+    if [ -f "$DIR/$PREFIX.access.log" ]; then
+        exists=1
+    else
+        touch "$DIR/$PREFIX.access.log"
+    fi
+    
+    echo "Start squidmill in the background. See $PREFIX.squidmill.log for details"
+    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -F "$DIR/$PREFIX.access.log" 2>"$DIR/$PREFIX.squidmill.log"
+    local squidmill_pid=$!
 
-    while [ $i -lt $max ]; do
-	print_log $i
-	i=$((i + 1))
-    done | "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -F - 2>"$DIR/$PREFIX.squidmill.log"
+    if [ $exists = 0 ]; then
+	echo "Write $max records into the test log file"
+        while [ $i -lt $max ]; do
+            print_log $i >>"$DIR/$PREFIX.access.log"
+	    i=$((i + 1))
+        done
+    fi
+
+    wait_for_squidmill "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.squidmill.log" +5
+
+    echo "Time is up: terminate squidmill" 
+    if ! terminate_squidmill $squidmill_pid +5; then
+        echo "Error: additional time is up"
+	return 1
+    fi
 }
 
 # Cleanup
 rm -f "$DIR/$PREFIX.squidmill.log"
-[ "${1:-}" = "-over" ] || rm -f "$DIR/$PREFIX.db"
+if [ "${1:-}" = "-over" ]; then
+    echo "Keep the data files as specified"
+else
+    rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+fi
 
 # Run the test
-echo "Insert $COUNT records into the DB using squidmill command"
-echo "See $PREFIX.squidmill.log for details"
 do_insert $COUNT
+
+file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then wc -l "$DIR/$PREFIX.access.log"; else echo 0; fi)
+if [ $file_count -gt 0 ]; then
+    echo "$file_count records written successfully"
+else
+    echo "Error -- no records were written"
+    exit 1
+fi
 
 echo "Query the DB to check the result"
 db_count=$(query_db "$DIR/$PREFIX.db" "select count(*) from access_log")
 if [ -n "$db_count" ]; then
-    if [ $db_count -eq $COUNT ]; then
+    if [ $db_count -eq $file_count ]; then
 	echo "Count OK"
     else
-	echo "Count error: found $db_count records, expected $COUNT"
+	echo "Count error: found $db_count records, expected $file_count"
 	exit 1
     fi
 else
@@ -46,7 +78,7 @@ fi
 
 db_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from access_log")
 if [ -n "$db_sum_size" ]; then
-    expected=$((SIZE * COUNT))
+    expected=$((SIZE * file_count))
     if [ $db_sum_size -eq $expected ]; then
 	echo "Size OK"
     else
