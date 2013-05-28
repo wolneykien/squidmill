@@ -1,0 +1,25 @@
+#!/bin/sh -efu
+
+ls -1 "${0%/*}" | grep '^[0-9]\+-' | sort | (
+    passed=0
+    failed=0
+    while read -r test; do
+	if [ -x "${0%/*}/$test" ]; then
+	    echo -n "Executing ${0%/*}/$test..."
+	    if "${0%/*}/$test" 2>&1 | cat >"${0%/*}/$test.log"; then
+		echo " OK"
+		passed=$((passed + 1))
+	    else
+		echo " FAILED. See ${0%/*}/$test.log for details"
+		failed=$((failed + 1))
+	    fi
+	fi
+    done
+    echo ""
+    if [ $failed -eq 0 ]; then
+	echo "All test passed"
+    else
+	echo "Some tests failed"
+	exit 1
+    fi
+)
