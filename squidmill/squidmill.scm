@@ -100,7 +100,7 @@
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
-     (pp debug-stm)
+     (pp debug-stm (current-error-port))
      (db-fold-left ,fn ,seed debug-stm)))
 
 (define (stub . args)
@@ -652,7 +652,7 @@
 (define (make-ipc-db-fold-left socket debug)
   (lambda (fn seed stm)
     (if debug
-      (pp stm))
+      (pp stm (current-error-port)))
     (write stm socket)
     (newline socket)
     (force-output socket 1)
