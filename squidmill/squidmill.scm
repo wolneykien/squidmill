@@ -7,7 +7,7 @@
         knil
         (kons (car list1) (f (cdr list1))))))
 
-(define (display-message prefix code message . args)
+(define (display-error prefix code message . args)
   (let ((port (or (and args (pair? args) (car args))
 		  (current-error-port))))
     (if prefix
@@ -24,20 +24,21 @@
 	(display message port)))
     (newline port)))
 
-(define display-error display-message)
+(define (display-message prefix-message . args)
+  (let ((code (and (not (null? args))
+		   (car args)))
+	(message (and (not (null? args))
+		      (not (null? (cdr args)))
+		      (cadr args)))
+	(other-args (if (and (not (null? args))
+			     (not (null? (cdr args))))
+			(cddr args)
+			'())))
+    (apply display-error prefix-message code message other-args)))
 
 (define (debug-message prefix-message . args)
   (if *debug*
-    (let ((code (and (not (null? args))
-		     (car args)))
-	  (message (and (not (null? args))
-			(not (null? (cdr args)))
-			(cadr args)))
-	  (other-args (if (and (not (null? args))
-			       (not (null? (cdr args))))
-			(cddr args)
-			'())))
-      (apply display-message prefix-message code message other-args))))
+    (apply display-message prefix-message args)))
 
 (define (report-exception ex . args)
   (let ((port (or (and args (pair? args) (car args))
@@ -58,6 +59,10 @@
 		     (signal-exception-number ex)
 		     #f
 		     port))
+     ((and (pair? ex)
+	   (number? (car ex))
+	   (string? (cdr ex)))
+      (display-error #f (car ex) (cdr ex) port))
      (else
       (display-error #f #f ex port)))))
 
@@ -573,6 +578,8 @@
 (define (version)
   "2.0.0")
 
+(define *default-pidfile* "/var/run/squidmill.pid")
+
 (define (usage)
   (display
     ((make-string-join "\n")
@@ -584,6 +591,8 @@
       "    -c PATH           Path to the communication socket"
       "    -h                Print this screen"
       "    -D                Debug mode on"
+      "    -b [PIDFILE]      Detach and run in the background."
+      "                      Default pid-file is /var/run/squidmill.pid"
       " "
       "Update options:"
       "    -B NUMBER         Bulk-insert size (default is 256)"
@@ -624,12 +633,13 @@
         (round-data #f)
         (report #f)
         (summary #f)
+	(background #f)
         (debug #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name socket-path bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report
-                      summary debug)
+                      summary debug background)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
@@ -687,6 +697,14 @@
                  (scan-next (cdr args)))
             ((D) (set! debug #t)
                  (scan-next (cdr args)))
+            ((b) (if (or (null? (cdr args))
+                          (opt-key? (cadr args)))
+                    (begin
+                      (set! background *default-pidfile*)
+                      (scan-next (cdr args)))
+                    (begin
+                      (set! background (cadr args))
+                      (scan-next (cddr args)))))
             (else (usage)
                   (exit 0)))
           (begin
@@ -800,10 +818,53 @@
 	 (a-loop (domain-socket-accept socket 0)))))
    "SQL server"))
 
+(c-declare "
+#include <errno.h>
+#include <unistd.h>
+")
+
+(define lasterror
+  (c-lambda () int
+    "___result = errno;"))
+
+(define lasterror->string
+  (c-lambda (int) char-string
+    "___result = strerror (___arg1);"))
+
+(define daemon
+  (c-lambda (int int) int
+    "___result = daemon (___arg1, ___arg2);"))
+
+(define getpid
+  (c-lambda () int
+    "___result = getpid ();"))
+
+(define (detach pidfile-name)
+  (if (= 0 (daemon 0 0))
+    (if pidfile-name
+      (with-exception-catcher
+        (lambda (e)
+	  (display-message "Unable to write the PID-file")
+	  (raise e))
+	(lambda ()
+	  (with-output-to-file (list 'path: pidfile-name 'create: #t)
+	    (lambda ()
+	      (display (getpid))
+	      (newline))))))
+    (raise (cons (lasterror) (lasterror->string (lasterror))))))
+
+(define (make-delete-pidfile pidfile-name)
+  (lambda ()
+    (if (and pidfile-name (string? pidfile-name))
+      (if (file-exists? pidfile-name)
+	(delete-file pidfile-name)))))
+
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              summary debug . input-files)
+              summary debug background . input-files)
   (set! *debug* debug)
+  (if background
+    (detach (and (string? background) background)))
   (call-with-values
     (lambda ()
       (let ((socket
@@ -832,7 +893,7 @@
 		      (make-domain-socket socket-path *socket-backlog*))))))
         (with-exception-catcher
           (lambda (e)
-            (close-all #f socket #f)
+            (close-all socket (make-delete-pidfile background))
             (raise e))
           (lambda ()
             (if (and (or (not socket) (domain-socket? socket)) db-name)
@@ -868,7 +929,7 @@
           (lambda (e)
 	    (if (and debug (signal-exception? e))
 	      (report-exception e))
-            (close-all db-close sql-server rounder)
+            (close-all db-close sql-server rounder (make-delete-pidfile background))
             (raise e))
           (lambda ()
             (if db-at-hand
@@ -899,7 +960,7 @@
 	      (thread-join! rounder))
 	    (if sql-server
 	      (thread-join! sql-server))
-	    (close-all db-close sql-server rounder)
+	    (close-all db-close sql-server rounder (make-delete-pidfile background))
 	    (exit 0)))))))
 
 (signal-set-exception! *SIGHUP*)
