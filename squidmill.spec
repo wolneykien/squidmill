@@ -6,20 +6,17 @@ Source: %name-%version.tar
 
 Packager: Paul Wolneykien <manowar@altlinux.ru>
 
-Summary: Squid access log file processing utility
-License: GPL
+Summary: Squid proxy server access log collector with rounding support
+License: GPLv3+
 Group: System/Configuration/Other
 
 # Automatically added by buildreq on Mon Apr 20 2009
 BuildRequires: gambit gambit-sqlite3-devel gambit-signal-devel gambit-dsock-devel rpm-macros-fillup sqlite3 /usr/bin/dc
 
 %description
-Squidmill unility can acquire and integrate information from
-Squid proxy server access log files. Rounding function can be used to
-save space (and reporting time).
-
-Online database update service and anacron job file for rounding an old
-data are included.
+Squidmill daemon acquires and integrates information from a
+Squid proxy server access log files. Rounding is supported to
+save space and reporting time.
 
 %prep
 %setup
