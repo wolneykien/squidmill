@@ -1,11 +1,13 @@
 
+(define *debug* #f)
+
 (define (fold-right kons knil clist1)
   (let f ((list1 clist1))
     (if (null? list1)
         knil
         (kons (car list1) (f (cdr list1))))))
 
-(define (display-error prefix code message . args)
+(define (display-message prefix code message . args)
   (let ((port (or (and args (pair? args) (car args))
 		  (current-error-port))))
     (if prefix
@@ -21,6 +23,21 @@
 	(display ": " port)
 	(display message port)))
     (newline port)))
+
+(define display-error display-message)
+
+(define (debug-message prefix-message . args)
+  (if *debug*
+    (let ((code (and (not (null? args))
+		     (car args)))
+	  (message (and (not (null? args))
+			(not (null? (cdr args)))
+			(cadr args)))
+	  (other-args (if (and (not (null? args))
+			       (not (null? (cdr args))))
+			(cddr args)
+			'())))
+      (apply display-message prefix-message code message other-args))))
 
 (define (report-exception ex . args)
   (let ((port (or (and args (pair? args) (car args))
@@ -244,11 +261,16 @@
               "1 year" "%Y-%m"))
 
 (define (round-all-logs db-fold-left)
+  (debug-message "Round the database data...")
   (log->hourly db-fold-left)
   (hourly->daily db-fold-left)
   (daily->monthly db-fold-left))
 
 (define (init-rounder period db-fold-left)
+  (debug-message "Init the rounder" #f
+		 (string-append "every "
+				(number->string period)
+				" s"))
   (make-thread
     (lambda ()
       (let loop ()
@@ -398,97 +420,151 @@
     (newline)
     seed))
 
-(define *read-log-timeout* 0.01)
 (define *read-log-delay* 0.01)
 
-(define (process-log proc port)
-  (let ((bulk '()))
-    (with-exception-catcher
-      (lambda (e)
-        (raise (cons e bulk)))
-      (lambda ()
-	(input-port-timeout-set! port *read-log-timeout*
-	  (lambda ()
-	    (let* ((on-timeout
-		    (lambda ()
-		      (input-port-timeout-set! port *read-log-timeout* on-timeout)
-		      (thread-yield!))))
-	      (on-timeout))))
-        (let loop ((ln (read-line port)))
-          (if (not (eof-object? ln))
-            (begin
-              (set! bulk
-                (apply proc
-                  bulk
-                  (string-tokenize ln '(#\space #\tab #\newline))))
-              (loop (read-line port)))))))
-    bulk))
-
-(define (call-with-input filename follow proc)
-  (if (equal? filename "-")
-    (proc (current-input-port))
-    (if (not follow)
-      (call-with-input-file filename proc)
-      (call-with-input-process
-        (list path: "tail"
-              arguments: (list "-F" filename))
-        proc))))
+(define (process-log add-event port on-exception)
+  (let loop ((bulk #f)
+	     (ln (read-line port)))
+    (if (not (eof-object? ln))
+      (with-exception-catcher
+        (lambda (e)
+	  (on-exception bulk e))
+	(lambda ()
+	  (let ((bulk (apply add-event bulk
+			     (string-tokenize ln '(#\space #\tab #\newline)))))
+	    (if (null? bulk)
+	      bulk
+	      (loop bulk
+		    (read-line port))))))
+      bulk)))
 
 (define (make-add-event db-fold-left bulk-size)
-  (let ((last-timestamp "")
-        (last-ident "")
-        (tail 0))
-    (lambda (bulk timestamp elapsed client action/code size method uri ident . other-fields)
-      (let ((bulk (if (>= (length bulk) bulk-size)
-                    (begin
-                      (bulk-insert db-fold-left bulk)
-                      '())
-                    bulk)))
-        (let ((bulk
-                (if (and (equal? ident last-ident)
-                         (equal? timestamp last-timestamp))
-                  (begin
-                    (set! tail (+ tail 1))
-                    (apply add-event
-                           bulk
-                           (string-append timestamp
-                                          (number->string tail))
-                           elapsed client action/code size method
-                           uri ident
-                           other-fields))
-                  (begin
-                    (set! tail 0)
-                      (apply add-event bulk timestamp elapsed client
-                             action/code size method uri ident
-                             other-fields)))))
-          (set! last-timestamp timestamp)
-          (set! last-ident ident)
-          bulk)))))
+  (lambda (bulk timestamp elapsed client action/code size method uri ident . other-fields)
+    (let ((bulk (apply add-event (or bulk '()) timestamp elapsed client
+		       action/code size method uri ident other-fields)))
+      (if (>= (length bulk) bulk-size)
+	  (begin
+	    (bulk-insert db-fold-left bulk)
+	    '())
+	  bulk))))
+
+(define (open-input-file-or-ignore path)
+  (with-exception-catcher
+    (lambda (e)
+      (if (no-such-file-or-directory-exception? e)
+	(begin
+	  (debug-message "File not found" #f path)
+	  #f)
+	(raise e)))
+    (lambda ()
+      (if (equal? filename "-")
+	(current-input-port)
+	(begin
+	  (debug-message "Open file" #f path)
+	  (open-input-file path))))))
+
+(define *reopen-delay* 0.1)
+(define *read-delay* 0.01)
+
+(define (make-add-log db-fold-left bulk-size)
+  (let ((add-event (make-add-event db-fold-left bulk-size))
+	(on-exception
+	  (lambda (bulk e)
+	    (with-exception-catcher report-and-ignore
+	      (lambda ()
+		 (bulk-insert db-fold-left bulk)))
+	    (raise e))))
+    (lambda (port)
+      (and port
+	   (let ((bulk (process-log add-event port on-exception)))
+	     (and bulk
+		  (or (null? bulk)
+		      (bulk-insert db-fold-left bulk))))))))
+
+(define (close-or-report port . args)
+  (if (and port (not (equal? (current-input-port) port)))
+    (with-exception-catcher report-and-ignore
+      (lambda ()
+	(debug-message "Close file" #f (and (not (null? args))
+					    (car args)))
+	(close-port port)))))
+
+(define (follow-add-logs db-fold-left bulk-size . files)
+  (if (not (null? files))
+    (debug-message "Follow the files until interrupted"))
+  (let ((add-log (make-add-log db-fold-left bulk-size)))
+    (let loop ((inputs (map (lambda (file)
+			      (list file
+				    (open-input-file-or-ignore file)
+				    0))
+			    files)))
+      (with-exception-catcher
+        (lambda (e)
+	  (for-each
+	    (lambda (input)
+	      (apply (lambda (file port timestamp)
+		       (close-or-report port file))
+		     input))
+	    inputs)
+	  (raise e))
+	(lambda ()
+	  (loop (let loop-inputs ((relax #t)
+				  (res-inputs '())
+				  (inputs inputs))
+		  (if (null? inputs)
+		    (begin
+		      (if relax
+			(thread-sleep! *read-delay*))
+		      res-inputs)
+		    (apply
+		      (lambda (file port timestamp)
+			(if (add-log port)
+			  (loop-inputs
+			    #f
+			    (append res-inputs
+				    (list file
+					  port
+					  (time->seconds (current-time))))
+			    (cdr inputs))
+			  (loop-inputs
+			    relax
+			    (append res-inputs
+				    (append (list file)
+					    (let ((now (time->seconds (current-time))))
+					      (if (> (- now timestamp) *reopen-delay*)
+						(begin
+						  (close-or-report port file)
+						  (list (open-input-file-or-ignore file)
+							now))
+						(list port timestamp)))))
+			    (cdr inputs))))
+		      (car inputs))))))))))
 
 (define (add-logs db-fold-left bulk-size follow . files)
-  (for-each
-    (lambda (file)
-      (call-with-input file follow
-        (lambda (port)
-          (let ((bulk 
-                   (with-exception-catcher
-                     (lambda (e)
-                       (if (not (or (null? (cdr e))
-                                    (sqlite3-error? (car e))))
-                         (bulk-insert db-fold-left (cdr e)))
-                       (if follow
-                         (send-signal (process-pid port)
-                                      (if (signal-exception? (car e))
-                                        (cdar e)
-                                        2)))
-                       (raise (car e)))
-                     (lambda ()
-                       (process-log (make-add-event db-fold-left
-                                                    bulk-size)
-                                    port)))))
-              (if (not (null? bulk))
-                (bulk-insert db-fold-left bulk))))))
-       files))
+  (debug-message "Add logs from files" #f
+		 (if (not (null? files))
+		   (fold-right (lambda (file tail)
+				 (if tail
+				   (string-append file " " tail)
+				   file))
+			       #f
+			       files)
+		   "(no files)"))
+  (if follow
+    (apply follow-add-logs db-fold-left bulk-size files)
+    (let ((add-log (make-add-log db-fold-left bulk-size)))
+      (for-each
+        (lambda (file)
+	  (let ((port (open-input-file-or-ignore file)))
+	    (if port
+	      (with-exception-catcher
+	        (lambda (e)
+		  (close-or-report port)
+		  (raise e))
+		(lambda ()
+		  (add-log port)
+		  (close-port port))))))
+	files))))
 
 (define (opt-key? arg)
   (and (> (string-length arg) 1)
@@ -631,7 +707,7 @@
     (db-fold-left-debug fn seed stm)))
 
 (define *socket-backlog* 100)
-(define *socket-timeout* 5000)
+(define *socket-timeout* 500)
 
 (define (close-all . args)
   (for-each (lambda (arg)
@@ -640,10 +716,13 @@
                   (lambda ()
 		    (cond
 		     ((thread? arg)
+		      (debug-message "Stop the " #f (thread-name arg))
 		      (thread-send arg #t))
 		     ((domain-socket? arg)
+		      (debug-message "Close the server socket" #f (domain-socket-path arg))
 		      (delete-domain-socket arg))
 		     ((port? arg)
+		      (debug-message "Close a file or socket")
 		      (close-port arg))
 		     ((procedure? arg)
 		      (arg)))))))
@@ -675,16 +754,13 @@
 		new-seed
 		(loop new-seed (read socket))))))))))
 
-(define *socket-listen-step-timeout* 10)
+(define *no-client-delay* 0.02)
 
-(define (init-sql-server db-fold-left socket debug)
+(define (init-sql-server db-fold-left socket)
   (make-thread
    (lambda ()
-     (if debug
-       (begin
-	 (display "Waiting for a client to connect..." (current-error-port))
-	 (newline (current-error-port))))
-     (let a-loop ((client (domain-socket-accept socket *socket-listen-step-timeout*)))
+     (debug-message "Waiting for a client to connect...")
+     (let a-loop ((client (domain-socket-accept socket 0)))
        (if (and client (port? client))
 	 (let ((send-and-raise
 		(lambda (e)
@@ -696,10 +772,7 @@
 		  (raise e))))
 	   (with-exception-catcher send-and-raise
 	     (lambda ()
-	       (if debug
-		 (begin
-		   (display "Client connected" (current-error-port))
-		   (newline (current-error-port))))
+	       (debug-message "Client connected")
 	       (thread-start!
 	         (make-thread
 		   (lambda ()
@@ -717,25 +790,20 @@
 			       stm)
 			     (r-loop (read client))))))
 		       (close-port client)
-		       (if debug
-			 (begin
-			   (display "Client disconnected" (current-error-port))
-			   (newline (current-error-port)))))
+		       (debug-message "Client disconnected"))
 		   (string-append "client "
 				  (number->string (time->seconds (current-time))))))
-	       (if debug
-		 (begin
-		   (display "Instance started. Waiting for an other client to connect..."
-			    (current-error-port))
-		   (newline (current-error-port))))))))
-       (thread-yield!)
+	       (debug-message "Instance started. Waiting for an other client to connect..."))))
+	 (if (not (thread-receive 0 #f))
+	   (thread-sleep! *no-client-delay*)))
        (if (not (thread-receive 0 #f))
-	 (a-loop (domain-socket-accept socket *socket-listen-step-timeout*)))))
-   "sql-server"))
+	 (a-loop (domain-socket-accept socket 0)))))
+   "SQL server"))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug . input-files)
+  (set! *debug* debug)
   (call-with-values
     (lambda ()
       (let ((socket
@@ -756,9 +824,11 @@
 				#f)
 			      (raise e)))
 			  (lambda ()
+			    (debug-message "Open client socket" #f socket-path)
 			    (domain-socket-connect socket-path *socket-timeout*)))
 			(raise e)))
 		    (lambda ()
+		      (debug-message "Open server socket" #f socket-path)
 		      (make-domain-socket socket-path *socket-backlog*))))))
         (with-exception-catcher
           (lambda (e)
@@ -766,12 +836,15 @@
             (raise e))
           (lambda ()
             (if (and (or (not socket) (domain-socket? socket)) db-name)
-	      (receive (db-fold-left db-close) (sqlite3 db-name)
-	        (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
-		  (values db-fold-left db-close socket)))
+	      (begin
+		(debug-message "Open database" #f db-name)
+		(receive (db-fold-left db-close) (sqlite3 db-name)
+	          (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
+		    (values db-fold-left db-close socket))))
 	      (if (and socket (port? socket))
 		(values (make-ipc-db-fold-left socket debug)
 			(lambda ()
+			  (debug-message "Close client socket" #f socket-path)
 			  (close-port socket))
 			#f)
 		(values #f #f #f)))))))
@@ -783,7 +856,7 @@
 			     (raise "No DB at hand. Rounding isn't possible"))))
 	     (sql-server (and socket db-fold-left
 			      (if db-at-hand
-				(init-sql-server db-fold-left socket debug)
+				(init-sql-server db-fold-left socket)
 				(begin
 				  (if debug
 				    (begin
@@ -801,9 +874,13 @@
             (if db-at-hand
               (init-db db-fold-left))
             (if rounder
-	      (thread-start! rounder))
+	      (begin
+		(debug-message "Start the rounder")
+		(thread-start! rounder)))
 	    (if sql-server
-	      (thread-start! sql-server))
+	      (begin
+		(debug-message "Start the SQL server")
+		(thread-start! sql-server)))
 	    (if (not (null? input-files))
 	      (if db-fold-left
 		(apply add-logs db-fold-left bulk-size follow input-files)
