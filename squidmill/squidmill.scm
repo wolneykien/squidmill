@@ -595,7 +595,7 @@
       "                      Default pid-file is /var/run/squidmill.pid"
       " "
       "Update options:"
-      "    -B NUMBER         Bulk-insert size (default is 256)"
+      "    -B NUMBER         Read/insert bulk size (default is 1)"
       "    -F                Follow mode"
       " "
       "Rounding options:"
@@ -621,7 +621,7 @@
   (let ((input-files '())
         (db-name #f)
         (socket-path #f)
-        (bulk-size 256)
+        (bulk-size 1)
         (follow #f)
         (sdate #f)
         (edate #f)
