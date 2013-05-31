@@ -584,7 +584,7 @@
 		  (raise e))
 		(lambda ()
 		  (add-log port)
-		  (close-port port))))))
+		  (close-or-report port))))))
 	files))))
 
 (define (opt-key? arg)
