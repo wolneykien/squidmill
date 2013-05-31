@@ -873,7 +873,9 @@
   (lambda ()
     (if (and pidfile-name (string? pidfile-name))
       (if (file-exists? pidfile-name)
-	(delete-file pidfile-name)))))
+	(begin
+	  (display-message "Delete the PID-file" #f pidfile-name)
+	  (delete-file pidfile-name))))))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
