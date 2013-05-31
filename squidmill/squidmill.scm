@@ -756,7 +756,7 @@
 		      (debug-message "Close the server socket" #f (domain-socket-path arg))
 		      (delete-domain-socket arg))
 		     ((port? arg)
-		      (debug-message "Close a file or socket")
+		      (debug-message "Close a file or a socket")
 		      (close-port arg))
 		     ((procedure? arg)
 		      (arg)))))))
