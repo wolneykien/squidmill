@@ -674,7 +674,7 @@
             ((M) (set! maxsize (string->number (cadr args)))
                   (scan-next (cddr args)))
             ((i) (if (or (null? (cdr args))
-                          (opt-key? (cadr args)))
+			 (opt-key? (cadr args)))
                     (begin
                       (set! ident-pat #t)
                       (scan-next (cdr args)))
@@ -682,7 +682,7 @@
                       (set! ident-pat (cadr args))
                       (scan-next (cddr args)))))
             ((u) (if (or (null? (cdr args))
-                          (opt-key? (cadr args)))
+			 (opt-key? (cadr args)))
                     (begin
                       (set! uri-pat #t)
                       (scan-next (cdr args)))
@@ -692,7 +692,7 @@
             ((l) (set! limit (string->number (cadr args)))
                   (scan-next (cddr args)))
             ((R) (if (or (null? (cdr args))
-                          (opt-key? (cadr args)))
+			 (opt-key? (cadr args)))
                     (begin
                       (set! round-data #t)
                       (scan-next (cdr args)))
@@ -700,7 +700,7 @@
                       (set! round-data (string->number (cadr args)))
                       (scan-next (cddr args)))))
             ((r) (if (or (null? (cdr args))
-                          (opt-key? (cadr args)))
+			 (opt-key? (cadr args)))
                     (begin
                       (set! report #t)
                       (scan-next (cdr args)))
@@ -714,7 +714,7 @@
             ((D) (set! debug #t)
                  (scan-next (cdr args)))
             ((b) (if (or (null? (cdr args))
-                          (opt-key? (cadr args)))
+			 (opt-key? (cadr args)))
                     (begin
                       (set! background *default-pidfile*)
                       (scan-next (cdr args)))
