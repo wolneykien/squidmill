@@ -872,7 +872,7 @@ c-lambda-end
   ))
 
 (define (stderr->logfile logfile-name)
-  (let ((log-fd (_stderr->logfile logfile-name) 0))
+  (let ((log-fd (_stderr->logfile logfile-name)))
     (if (> log-fd 0)
       log-fd
       (raise (cons (lasterror) (lasterror->string (lasterror)))))))
