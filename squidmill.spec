@@ -10,8 +10,11 @@ Summary: Squid proxy server access log collector with rounding support
 License: GPLv3+
 Group: System/Configuration/Other
 
-# Automatically added by buildreq on Mon Apr 20 2009
-BuildRequires: gambit gambit-sqlite3-devel gambit-signal-devel gambit-dsock-devel rpm-macros-fillup sqlite3 /usr/bin/dc
+BuildRequires: gambit
+BuildRequires: gambit-sqlite3-devel >= 1.2-alt7
+BuildRequires: gambit-signal-devel >= 1.0-alt11
+BuildRequires: gambit-dsock-devel >= 1.0-alt2
+BuildRequires: rpm-macros-fillup sqlite3 /usr/bin/dc
 
 %description
 Squidmill daemon acquires and integrates information from a
