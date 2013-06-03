@@ -607,8 +607,9 @@
       "    -c PATH           Path to the communication socket"
       "    -h                Print this screen"
       "    -D                Debug mode on"
-      "    -b [PIDFILE]      Detach and run in the background."
+      "    -b [PIDFILE]      Detach and run in the background"
       "                      Default pid-file is /var/run/squidmill.pid"
+      "    -L LOG-FILE       Write the messages to that file instead of stderr"
       " "
       "Update options:"
       "    -B NUMBER         Read/insert bulk size (default is 1)"
@@ -620,7 +621,7 @@
       " "
       "Reporting options:"
       "    -r [FORMAT]       Report format. Default is plaintext."
-      "                      Use 'list' for Scheme list."
+      "                      Use 'list' for Scheme list"
       "    -s YYYY-DD-MM     Select records newer than that"
       "    -e YYYY-DD-MM     Select records not newer than that"
       "    -m NUMBER         Exclude trafic statistic not more than that"
@@ -650,12 +651,13 @@
         (report #f)
         (summary #f)
 	(background #f)
+	(log-file #f)
         (debug #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name socket-path bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report
-                      summary debug background)
+                      summary debug background log-file)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
@@ -721,6 +723,8 @@
                     (begin
                       (set! background (cadr args))
                       (scan-next (cddr args)))))
+	    ((L) (set! log-file (cadr args))
+	         (scan-next (cddr args)))
             (else (usage)
                   (exit 0)))
           (begin
@@ -837,6 +841,9 @@
 (c-declare "
 #include <errno.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 ")
 
 (define lasterror
@@ -855,34 +862,47 @@
   (c-lambda () int
     "___result = getpid ();"))
 
+(define _stderr->logfile
+  (c-lambda (char-string) int
+#<<c-lambda-end
+  if ((___result = open (___arg1, O_CREAT | O_APPEND | O_WRONLY)) > 0) {
+    ___result = dup2 (___result, 2);
+  }
+c-lambda-end
+  ))
+
+(define (stderr->logfile logfile-name)
+  (let ((log-fd (_stderr->logfile logfile-name) 0))
+    (if (> log-fd 0)
+      log-fd
+      (raise (cons (lasterror) (lasterror->string (lasterror)))))))
+
 (define (detach pidfile-name)
   (if (= 0 (daemon 0 0))
-    (if pidfile-name
-      (with-exception-catcher
-        (lambda (e)
-	  (display-message "Unable to write the PID-file")
-	  (raise e))
-	(lambda ()
-	  (with-output-to-file (list 'path: pidfile-name 'create: #t)
-	    (lambda ()
-	      (display (getpid))
-	      (newline))))))
+    (let ((pid (getpid)))
+      (if pidfile-name
+	(with-exception-catcher
+	  (lambda (e)
+	    (display-message "Unable to write the PID-file")
+	    (raise e))
+	  (lambda ()
+	    (with-output-to-file (list 'path: pidfile-name 'create: #t)
+	      (lambda ()
+		(display pid)
+		(newline))))))
+      pid)
     (raise (cons (lasterror) (lasterror->string (lasterror))))))
 
-(define (make-delete-pidfile pidfile-name)
-  (lambda ()
-    (if (and pidfile-name (string? pidfile-name))
-      (if (file-exists? pidfile-name)
-	(begin
-	  (display-message "Delete the PID-file" #f pidfile-name)
-	  (delete-file pidfile-name))))))
+(define (delete-pidfile pidfile-name)
+  (if (and pidfile-name (string? pidfile-name))
+    (if (file-exists? pidfile-name)
+      (begin
+	(display-message "Delete the PID-file" #f pidfile-name)
+	(delete-file pidfile-name)))))
 
-(define (main db-name socket-path bulk-size follow sdate edate ident-pat
+(define (do-main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              summary debug background . input-files)
-  (set! *debug* debug)
-  (if background
-    (detach (and (string? background) background)))
+              summary debug . input-files)
   (call-with-values
     (lambda ()
       (let ((socket
@@ -911,7 +931,7 @@
 		      (make-domain-socket socket-path *socket-backlog*))))))
         (with-exception-catcher
           (lambda (e)
-            (close-all socket (make-delete-pidfile background))
+            (close-all socket)
             (raise e))
           (lambda ()
             (if (and (or (not socket) (domain-socket? socket)) db-name)
@@ -947,7 +967,7 @@
           (lambda (e)
 	    (if (and debug (signal-exception? e))
 	      (report-exception e))
-            (close-all db-close sql-server rounder (make-delete-pidfile background))
+            (close-all db-close sql-server rounder)
             (raise e))
           (lambda ()
             (if db-at-hand
@@ -978,8 +998,28 @@
 	      (thread-join! rounder))
 	    (if sql-server
 	      (thread-join! sql-server))
-	    (close-all db-close sql-server rounder (make-delete-pidfile background))
+	    (close-all db-close sql-server rounder)
 	    (exit 0)))))))
+
+(define (main db-name socket-path bulk-size follow sdate edate ident-pat
+              uri-pat minsize maxsize limit round-data report-format
+              summary debug background log-file . input-files)
+  (set! *debug* debug)
+  (let ((log-fd (and log-file (string? log-file)
+		     (stderr->logfile log-file)))
+	(pid (and background
+		  (detach (string? background)))))
+    (with-exception-catcher
+      (lambda (e)
+	(if (or debug (not (signal-exception? e)))
+	  (report-exception e))
+	(if pid
+	  (delete-pidfile background))
+	(raise e))
+      (lambda ()
+	(apply do-main db-name socket-path bulk-size follow sdate edate ident-pat
+	       uri-pat minsize maxsize limit round-data report-format
+	       summary debug input-files)))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
