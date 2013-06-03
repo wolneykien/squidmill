@@ -580,11 +580,11 @@
 	    (if port
 	      (with-exception-catcher
 	        (lambda (e)
-		  (close-or-report port)
+		  (close-or-report port file)
 		  (raise e))
 		(lambda ()
 		  (add-log port)
-		  (close-or-report port))))))
+		  (close-or-report port file))))))
 	files))))
 
 (define (opt-key? arg)
