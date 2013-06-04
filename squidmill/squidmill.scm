@@ -990,7 +990,8 @@
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug background log-file . input-files)
-  (let ((log-port (and log-file (open-output-file log-file)))
+  (let ((log-port (and log-file
+		       (open-output-file `(path: ,log-file append: #t create: maybe))))
 	(pid (and background
 		  (detach (string? background)))))
     (with-exception-catcher
