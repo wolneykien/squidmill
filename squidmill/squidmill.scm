@@ -482,7 +482,7 @@
 	  #f)
 	(raise e)))
     (lambda ()
-      (if (equal? filename "-")
+      (if (equal? path "-")
 	(current-input-port)
 	(begin
 	  (debug-message "Open file" #f path)
