@@ -1010,6 +1010,8 @@
       (lambda ()
 	(set! *debug* debug)
 	(set! *log-port* log-port)
+	(if *log-port*
+	  (display-message "*** Log started"))
 	(apply do-main db-name socket-path bulk-size follow sdate edate ident-pat
 	       uri-pat minsize maxsize limit round-data report-format
 	       summary debug input-files)))))
