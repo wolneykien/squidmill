@@ -870,7 +870,7 @@
     "___result = getpid ();"))
 
 (define (detach pidfile-name)
-  (if (= 0 (daemon 0 0))
+  (if (= 0 (daemon 1 1))
     (let ((pid (getpid)))
       (debug-message "Process detached" pid)
       (if pidfile-name
