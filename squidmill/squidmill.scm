@@ -40,7 +40,8 @@
       (begin
 	(display ": " port)
 	(display message port)))
-    (newline port)))
+    (newline port)
+    (force-output port 1)))
 
 (define (display-message prefix-message . args)
   (let ((code (and (not (null? args))
@@ -985,29 +986,30 @@
 	      (thread-join! rounder))
 	    (if sql-server
 	      (thread-join! sql-server))
-	    (close-all db-close sql-server rounder)
-	    (exit 0)))))))
+	    (close-all db-close sql-server rounder)))))))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug background log-file . input-files)
-  (let ((log-port (and log-file
-		       (open-output-file `(path: ,log-file append: #t create: maybe))))
-	(pid (and background
-		  (detach (string? background)))))
+  (let* ((log-port (and log-file
+			(open-output-file `(path: ,log-file append: #t create: maybe))))
+	 (pid (and background
+		   (detach (string? background))))
+	 (close (lambda ()
+		  (if pid
+		    (delete-pidfile background))
+		  (set! *debug* #f)
+		  (if log-port
+		    (begin
+		      (display-message "*** Log finished")
+		      (close-or-report log-port log-file)
+		      (set! *log-port* #f))))))
     (with-exception-catcher
       (lambda (e)
 	(if (or debug (not (signal-exception? e)))
 	  (report-exception e))
-	(if pid
-	  (delete-pidfile background))
-	(set! *debug* #f)
-	(if log-port
-	  (begin
-	    (display-message "*** Log finished")
-	    (close-or-report log-port log-file)
-	    (set! *log-port* #f)))
-	(raise e))
+	(close)
+	(exit 1))
       (lambda ()
 	(set! *debug* debug)
 	(set! *log-port* log-port)
@@ -1015,7 +1017,9 @@
 	  (display-message "*** Log started"))
 	(apply do-main db-name socket-path bulk-size follow sdate edate ident-pat
 	       uri-pat minsize maxsize limit round-data report-format
-	       summary debug input-files)))))
+	       summary debug input-files)
+	(close)
+	(exit 0)))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
