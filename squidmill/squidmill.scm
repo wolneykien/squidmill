@@ -474,20 +474,21 @@
 	    '())
 	  bulk))))
 
-(define (open-input-file-or-ignore path)
+(define (open-input-file-or-ignore path existing-port)
   (with-exception-catcher
-    (lambda (e)
-      (if (no-such-file-or-directory-exception? e)
-	(begin
-	  (debug-message "File not found" #f path)
-	  #f)
-	(raise e)))
-    (lambda ()
-      (if (equal? path "-")
-	(current-input-port)
-	(begin
-	  (debug-message "Open file" #f path)
-	  (open-input-file path))))))
+   (lambda (e)
+     (if (and existing-port (no-such-file-or-directory-exception? e))
+       (begin
+	 (debug-message "File disappeared" #f path)
+	 #f)
+       (raise e)))
+   (lambda ()
+     (if (equal? path "-")
+       (current-input-port)
+       (begin
+	 (if (not existing-port)
+	   (debug-message "Open file" #f path))
+	 (open-input-file path))))))
 
 (define *reopen-delay* 0.1)
 (define *read-delay* 0.01)
@@ -507,14 +508,12 @@
 		  (or (null? bulk)
 		      (bulk-insert db-fold-left bulk))))))))
 
-(define (close-or-report port . args)
+(define (close-or-report port path)
   (if (and port (not (equal? (current-input-port) port)))
     (with-exception-catcher report-and-ignore
       (lambda ()
-	(let ((file (and (not (null? args))
-			 (car args))))
-	  (if file
-	    (debug-message "Close file" #f file)))
+	(if path
+	  (debug-message "Close file" #f path))
 	(close-port port)))))
 
 (define (follow-add-logs db-fold-left bulk-size . files)
@@ -523,7 +522,7 @@
   (let ((add-log (make-add-log db-fold-left bulk-size)))
     (let loop ((inputs (map (lambda (file)
 			      (list file
-				    (open-input-file-or-ignore file)
+				    (open-input-file-or-ignore file #f)
 				    0))
 			    files)))
       (with-exception-catcher
@@ -561,8 +560,8 @@
 					    (let ((now (time->seconds (current-time))))
 					      (if (> (- now timestamp) *reopen-delay*)
 						(begin
-						  (close-or-report port)
-						  (list (open-input-file-or-ignore file)
+						  (close-or-report port #f)
+						  (list (open-input-file-or-ignore file port)
 							now))
 						(list port timestamp)))))
 			    (cdr inputs))))
@@ -583,7 +582,7 @@
     (let ((add-log (make-add-log db-fold-left bulk-size)))
       (for-each
         (lambda (file)
-	  (let ((port (open-input-file-or-ignore file)))
+	  (let ((port (open-input-file-or-ignore file #f)))
 	    (if port
 	      (with-exception-catcher
 	        (lambda (e)
