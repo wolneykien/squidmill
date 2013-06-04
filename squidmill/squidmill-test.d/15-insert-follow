@@ -14,25 +14,22 @@ do_insert()
 {
     local max=$1
     local i=0
-    local exists=0
     
-    if [ -f "$DIR/$PREFIX.access.log" ]; then
-        exists=1
-    else
-        touch "$DIR/$PREFIX.access.log"
-    fi
+    touch "$DIR/$PREFIX.access.log"
     
     echo "Start squidmill in the background. See $PREFIX.squidmill.log for details"
-    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -F "$DIR/$PREFIX.access.log" 2>"$DIR/$PREFIX.squidmill.log"
-    local squidmill_pid=$!
-
-    if [ $exists = 0 ]; then
-	echo "Write $max records into the test log file"
-        while [ $i -lt $max ]; do
-            print_log $i >>"$DIR/$PREFIX.access.log"
-	    i=$((i + 1))
-        done
+    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -b "$DIR/$PREFIX/squidmill.pid" -L "$DIR/$PREFIX.squidmill.log" -F "$DIR/$PREFIX.access.log"
+    local squidmill_pid=$(cat "$DIR/$PREFIX/squidmill.pid")
+    if [ -z "$squidmill_pid" ]; then
+        echo "No PID-file found"
+	return 1
     fi
+
+    echo "Write $max records into the test log file"
+    while [ $i -lt $max ]; do
+        print_log $i >>"$DIR/$PREFIX.access.log"
+	i=$((i + 1))
+    done
 
     wait_for_squidmill "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.squidmill.log" +5
 
@@ -45,16 +42,12 @@ do_insert()
 
 # Cleanup
 rm -f "$DIR/$PREFIX.squidmill.log"
-if [ "${1:-}" = "-over" ]; then
-    echo "Keep the data files as specified"
-else
-    rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
-fi
+rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
 # Run the test
 do_insert $COUNT
 
-file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then wc -l "$DIR/$PREFIX.access.log"; else echo 0; fi)
+file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then cat "$DIR/$PREFIX.access.log" | wc -l; else echo 0; fi)
 if [ $file_count -gt 0 ]; then
     echo "$file_count records written successfully"
 else

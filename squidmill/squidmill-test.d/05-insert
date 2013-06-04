@@ -1,0 +1,75 @@
+#!/bin/sh -efu
+
+. "${0%/*}/squidmill-test-functions.sh"
+
+DIR="${0%/*}"
+PREFIX="${PREFIX:-${0##*/}}"
+COUNT=1000
+
+# Inserts the specified number of records using
+# Squidmill.
+#
+# args: number-of-records
+do_insert()
+{
+    local max=$1
+    local i=0
+    
+    if ! [ -f "$DIR/$PREFIX.access.log" ]; then
+	echo "Write $max records into the test log file"
+        while [ $i -lt $max ]; do
+            print_log $i >>"$DIR/$PREFIX.access.log"
+	    i=$((i + 1))
+        done
+    fi
+    
+    echo "Call squidmill in the foreground. See $PREFIX.squidmill.log for details"
+    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.access.log"
+}
+
+# Cleanup
+rm -f "$DIR/$PREFIX.squidmill.log"
+if [ "${1:-}" = "-over" ]; then
+    echo "Keep the data files as specified"
+else
+    rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+fi
+
+# Run the test
+do_insert $COUNT
+
+file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then cat "$DIR/$PREFIX.access.log" | wc -l; else echo 0; fi)
+if [ $file_count -gt 0 ]; then
+    echo "$file_count records written successfully"
+else
+    echo "Error -- no records were written"
+    exit 1
+fi
+
+echo "Query the DB to check the result"
+db_count=$(query_db "$DIR/$PREFIX.db" "select count(*) from access_log")
+if [ -n "$db_count" ]; then
+    if [ $db_count -eq $file_count ]; then
+	echo "Count OK"
+    else
+	echo "Count error: found $db_count records, expected $file_count"
+	exit 1
+    fi
+else
+    echo "Unable to get the record count"
+    exit 1
+fi
+
+db_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from access_log")
+if [ -n "$db_sum_size" ]; then
+    expected=$((SIZE * file_count))
+    if [ $db_sum_size -eq $expected ]; then
+	echo "Size OK"
+    else
+	echo "Size error: summary size is $db_sum_size, expected $expected"
+	exit 1
+    fi
+else
+    echo "Unable to get the summary size"
+    exit 1
+fi

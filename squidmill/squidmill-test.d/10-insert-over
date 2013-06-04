@@ -10,8 +10,8 @@ rm -f "$DIR/$PREFIX.squidmill.log"
 rm -f "$DIR/$PREFIX.db"
 
 # Copy the previous test result
-cp "$DIR/10-insert.db" "$DIR/$PREFIX.db"
+cp "$DIR/05-insert.db" "$DIR/$PREFIX.db"
 
 # Run the test
 echo "Insert the same data over again"
-PREFIX="$PREFIX" "$DIR/10-insert" -over
+PREFIX="$PREFIX" "$DIR/05-insert" -over

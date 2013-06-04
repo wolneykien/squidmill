@@ -22,31 +22,26 @@ do_insert_round()
     local max="$2"
     local start=$(date +%s)
     local end=$((start + period*max + period/2))
-    local exists=0
     
-    if [ -f "$DIR/$PREFIX.access.log" ]; then
-        exists=1
-    else
-        touch "$DIR/$PREFIX.access.log"
-    fi
+    touch "$DIR/$PREFIX.access.log"
 
     echo "Start squidmill in the background. See $PREFIX.squidmill.log for details"
-    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -B 1 -R "$period_sec" -F "$DIR/$PREFIX.access.log" 2>"$DIR/$PREFIX.squidmill.log" &
-    local squidmill_pid=$!
-
-    if [ $exists = 0 ]; then
-        echo "Write the records for $max.5 periods of $period seconds"
+    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -b "$DIR/$PREFIX/squidmill.pid" -L "$DIR/$PREFIX.squidmill.log" -R "$period_sec" -F "$DIR/$PREFIX.access.log"
+    local squidmill_pid=$(cat "$DIR/$PREFIX/squidmill.pid")
+    if [ -z "$squidmill_pid" ]; then
+        echo "No PID-file found"
+	return 1
     fi
+
+    echo "Write the records for $max.5 periods of $period seconds"
     local time=$(date +%s)
     while [ $time -lt $end ]; do
-        if [ $exists = 0 ]; then
-            j=0
-            while [ $j -lt $loop ]; do
-                print_log $i >>"$DIR/$PREFIX.access.log"
-                i=$((i + 1))
-	        j=$((j + 1))
-	    done
-	fi
+        j=0
+        while [ $j -lt $loop ]; do
+            print_log $i >>"$DIR/$PREFIX.access.log"
+            i=$((i + 1))
+	    j=$((j + 1))
+	done
 	wait_for_squidmill "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.squidmill.log" $end
         time=$(date +%s)
     done
@@ -60,16 +55,12 @@ do_insert_round()
 
 # Cleanup
 rm -f "$DIR/$PREFIX.squidmill.log"
-if [ "${1:-}" = "-over" ]; then
-    echo "Keep the data files as specified"
-else
-    rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
-fi
+rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
 # Run the test
 do_insert_round $PERIOD $COUNT
 
-file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then wc -l "$DIR/$PREFIX.access.log"; else echo 0; fi)
+file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then cat "$DIR/$PREFIX.access.log" | wc -l; else echo 0; fi)
 if [ $file_count -gt 0 ]; then
     echo "$file_count records written successfully"
 else
