@@ -551,21 +551,24 @@
 			  (loop-inputs
 			    #f
 			    (append res-inputs
-				    (list file
-					  port
-					  (time->seconds (current-time))))
+				    (list
+				      (list file
+					    port
+					    (time->seconds (current-time)))))
 			    (cdr inputs))
 			  (loop-inputs
 			    relax
 			    (append res-inputs
-				    (append (list file)
-					    (let ((now (time->seconds (current-time))))
-					      (if (> (- now timestamp) *reopen-delay*)
-						(begin
-						  (close-or-report port #f)
-						  (list (open-input-file-or-ignore file port)
-							now))
-						(list port timestamp)))))
+				    (list
+				      (append (list file)
+					      (let ((now (time->seconds (current-time))))
+						(if (> (- now timestamp) *reopen-delay*)
+						  (begin
+						    (close-or-report port #f)
+						    (list (open-input-file-or-ignore file
+										     port)
+							  now))
+						  (list port timestamp))))))
 			    (cdr inputs))))
 		      (car inputs))))))))))
 
