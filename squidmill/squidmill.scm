@@ -26,7 +26,7 @@
 
 (define (display-error prefix code message . args)
   (let ((port (or (and args (pair? args) (car args))
-		  *log-file*
+		  *log-port*
 		  (current-error-port))))
     (if prefix
 	(display prefix port)
@@ -60,7 +60,7 @@
 
 (define (report-exception ex . args)
   (let ((port (or (and args (pair? args) (car args))
-		  *log-file*
+		  *log-port*
 		  (current-error-port))))
     (cond
      ((sqlite3-error? ex)
@@ -148,7 +148,7 @@
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
-     (pp debug-stm (or *log-file*
+     (pp debug-stm (or *log-port*
 		       (current-error-port)))
      (db-fold-left ,fn ,seed ,stm)))
 
@@ -780,7 +780,7 @@
 (define (make-ipc-db-fold-left socket)
   (lambda (fn seed stm)
     (if *debug*
-      (pp stm (or *log-file*
+      (pp stm (or *log-port*
 		  (current-error-port))))
     (write stm socket)
     (newline socket)
