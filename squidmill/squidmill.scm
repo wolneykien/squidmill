@@ -521,56 +521,57 @@
 (define (follow-add-logs db-fold-left bulk-size . files)
   (if (not (null? files))
     (debug-message "Follow the files until interrupted"))
-  (let ((add-log (make-add-log db-fold-left bulk-size)))
-    (let loop ((inputs (map (lambda (file)
-			      (list file
-				    (open-input-file-or-ignore file #f)
-				    0))
-			    files)))
-      (with-exception-catcher
-        (lambda (e)
-	  (for-each
-	    (lambda (input)
-	      (apply (lambda (file port timestamp)
-		       (close-or-report port file))
-		     input))
-	    inputs)
-	  (raise e))
-	(lambda ()
-	  (loop (let loop-inputs ((relax #t)
-				  (res-inputs '())
-				  (inputs inputs))
-		  (if (null? inputs)
-		    (begin
-		      (if relax
-			(thread-sleep! *read-delay*))
-		      res-inputs)
-		    (apply
-		      (lambda (file port timestamp)
-			(if (add-log port)
-			  (loop-inputs
-			    #f
-			    (append res-inputs
-				    (list
-				      (list file
-					    port
-					    (time->seconds (current-time)))))
-			    (cdr inputs))
-			  (loop-inputs
-			    relax
-			    (append res-inputs
-				    (list
-				      (append (list file)
-					      (let ((now (time->seconds (current-time))))
-						(if (> (- now timestamp) *reopen-delay*)
-						  (begin
-						    (close-or-report port #f)
-						    (list (open-input-file-or-ignore file
-										     port)
-							  now))
-						  (list port timestamp))))))
-			    (cdr inputs))))
-		      (car inputs))))))))))
+  (let ((add-log (make-add-log db-fold-left bulk-size))
+	(inputs (map (lambda (file)
+		       (list file
+			     (open-input-file-or-ignore file #f)
+			     0))
+		     files)))
+    (with-exception-catcher
+      (lambda (e)
+	(for-each
+	 (lambda (input)
+	   (apply (lambda (file port timestamp)
+		    (close-or-report port file))
+		  input))
+	 inputs)
+	(raise e))
+      (lambda ()
+	(let loop-inputs ((relax #t)
+			  (res-inputs '())
+			  (inputs inputs))
+	  (if (null? inputs)
+	    (begin
+	      (if relax
+		(thread-sleep! *read-delay*))
+	      (if (not (null? res-inputs))
+		(loop-inputs #t '() res-inputs)))
+	    (apply
+	      (lambda (file port timestamp)
+		(if (add-log port)
+		  (loop-inputs
+		   #f
+		   (append res-inputs
+			   (list
+			    (list file
+				  port
+				  (time->seconds (current-time)))))
+		   (cdr inputs))
+		  (loop-inputs
+		   relax
+		   (append res-inputs
+			   (list
+			    (append (list file)
+				    (let ((now (time->seconds (current-time))))
+				      (if (> (- now timestamp) *reopen-delay*)
+					(begin
+					  (close-or-report port #f)
+					  (list (open-input-file-or-ignore file
+									   port)
+						now))
+					(list port timestamp))))))
+		   (cdr inputs))))
+	      (car inputs))))))))
 
 (define (add-logs db-fold-left bulk-size follow . files)
   (debug-message "Add logs from files" #f
