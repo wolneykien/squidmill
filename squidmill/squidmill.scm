@@ -1000,7 +1000,7 @@
 		       (if log-port
 			 (begin
 			   (display-message "*** Log finished")
-			   (close-or-report log-port log-file)
+			   (close-port log-port)
 			   (set! *log-port* #f))))))
     (with-exception-catcher
       (lambda (e)
