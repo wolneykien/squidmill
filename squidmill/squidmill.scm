@@ -1015,7 +1015,7 @@
     (with-exception-catcher
       (lambda (e)
 	(report-exception e)
-	(if (not (signal-exception? e))
+	(if (and *debug* (not (signal-exception? e)))
 	  (continuation-capture
 	   (lambda (c)
 	     (display-continuation-backtrace c (or log-port (current-error-port))))))
