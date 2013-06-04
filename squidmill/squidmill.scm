@@ -25,7 +25,7 @@
         (kons (car list1) (f (cdr list1))))))
 
 (define (display-error prefix code message . args)
-  (let ((port (or (and args (pair? args) (car args))
+  (let ((port (or (and (not (null? args)) (car args))
 		  *log-port*
 		  (current-error-port))))
     (if prefix
@@ -44,8 +44,7 @@
     (force-output port 1)))
 
 (define (display-message prefix-message . args)
-  (let ((code (and (not (null? args))
-		   (car args)))
+  (let ((code (and (not (null? args)) (car args)))
 	(message (and (not (null? args))
 		      (not (null? (cdr args)))
 		      (cadr args)))
@@ -60,7 +59,7 @@
     (apply display-message prefix-message args)))
 
 (define (report-exception ex . args)
-  (let ((port (or (and args (pair? args) (car args))
+  (let ((port (or (and (not (null? args)) (car args))
 		  *log-port*
 		  (current-error-port))))
     (cond
@@ -79,12 +78,15 @@
 		     (signal-exception-number ex)
 		     #f
 		     port))
-     ((and (pair? ex)
-	   (number? (car ex))
-	   (string? (cdr ex)))
-      (display-error #f (car ex) (cdr ex) port))
+     ((error-exception? ex)
+      (let ((message (error-exception-message ex))
+	    (args (error-exception-parameters)))
+	(display-error #f (and (not (null? args))
+			       (car args))
+		          message
+			  port)))
      (else
-      (display-error #f #f ex port)))))
+      (display-exception ex port)))))
 
 (define (report-and-raise ex)
   (report-exception ex)
@@ -870,6 +872,11 @@
   (c-lambda () int
     "___result = getpid ();"))
 
+(define (raise-lasterror)
+  (let ((code (lasterror))
+	(message (lasterror->string code)))
+    (error message code)))
+
 (define (detach pidfile-name)
   (if (= 0 (daemon 1 1))
     (let ((pid (getpid)))
@@ -886,7 +893,7 @@
 		(newline)))
 	    (debug-message "PID-file" #f pidfile-name))))
       pid)
-    (raise (cons (lasterror) (lasterror->string (lasterror))))))
+    (raise-lasterror)))
 
 (define (delete-pidfile pidfile-name)
   (if (and pidfile-name (string? pidfile-name))
@@ -1006,6 +1013,9 @@
     (with-exception-catcher
       (lambda (e)
 	(report-exception e)
+	(continuation-capture
+	  (lambda (c)
+	    (display-continuation-backtrace c (or log-port (current-error-port)))))
 	(close-log!)
 	(raise e))
       (lambda ()
