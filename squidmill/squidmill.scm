@@ -963,8 +963,6 @@
 				  #f)))))
         (with-exception-catcher
           (lambda (e)
-	    (if (and debug (signal-exception? e))
-	      (report-exception e))
             (close-all db-close sql-server rounder)
             (raise e))
           (lambda ()
