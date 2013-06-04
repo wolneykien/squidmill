@@ -872,6 +872,7 @@
 (define (detach pidfile-name)
   (if (= 0 (daemon 0 0))
     (let ((pid (getpid)))
+      (debug-message "Process detached" pid)
       (if pidfile-name
 	(with-exception-catcher
 	  (lambda (e)
@@ -881,7 +882,8 @@
 	    (with-output-to-file (list 'path: pidfile-name 'create: #t)
 	      (lambda ()
 		(display pid)
-		(newline))))))
+		(newline)))
+	    (debug-message "PID-file" #f pidfile-name))))
       pid)
     (raise (cons (lasterror) (lasterror->string (lasterror))))))
 
@@ -991,35 +993,39 @@
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug background log-file . input-files)
+  (set! *debug* debug)
   (let* ((log-port (and log-file
 			(open-output-file `(path: ,log-file append: #t create: maybe))))
-	 (pid (and background
-		   (detach (string? background))))
-	 (close (lambda ()
-		  (if pid
-		    (delete-pidfile background))
-		  (set! *debug* #f)
-		  (if log-port
-		    (begin
-		      (display-message "*** Log finished")
-		      (close-or-report log-port log-file)
-		      (set! *log-port* #f))))))
+	 (close-log! (lambda ()
+		       (if log-port
+			 (begin
+			   (display-message "*** Log finished")
+			   (close-or-report log-port log-file)
+			   (set! *log-port* #f))))))
     (with-exception-catcher
       (lambda (e)
-	(if (or debug (not (signal-exception? e)))
-	  (report-exception e))
-	(close)
-	(exit 1))
+	(report-exception e)
+	(close-log!)
+	(raise e))
       (lambda ()
-	(set! *debug* debug)
 	(set! *log-port* log-port)
 	(if *log-port*
 	  (display-message "*** Log started"))
-	(apply do-main db-name socket-path bulk-size follow sdate edate ident-pat
-	       uri-pat minsize maxsize limit round-data report-format
-	       summary debug input-files)
-	(close)
-	(exit 0)))))
+	(let* ((pid (and background
+			 (detach (string? background))))
+	       (close-pid (lambda ()
+			    (if pid
+			      (delete-pidfile background)))))
+	  (with-exception-catcher
+	    (lambda (e)
+	      (close-pid)
+	      (raise e))
+	    (lambda ()
+	      (apply do-main db-name socket-path bulk-size follow sdate edate
+		     ident-pat uri-pat minsize maxsize limit round-data
+		     report-format summary debug input-files)
+	      (close-pid))))
+	(close-log!)))))
 
 (signal-set-exception! *SIGHUP*)
 (signal-set-exception! *SIGTERM*)
@@ -1030,7 +1036,7 @@
   (lambda (e)
     (if (signal-exception? e)
       (exit 0)
-      (report-and-raise e)))
+      (exit 1)))
   (lambda ()
     (let ((args (with-exception-catcher
 		  (lambda (e)
