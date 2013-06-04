@@ -511,8 +511,10 @@
   (if (and port (not (equal? (current-input-port) port)))
     (with-exception-catcher report-and-ignore
       (lambda ()
-	(debug-message "Close file" #f (and (not (null? args))
-					    (car args)))
+	(let ((file (and (not (null? args))
+			 (car args))))
+	  (if file
+	    (debug-message "Close file" #f file)))
 	(close-port port)))))
 
 (define (follow-add-logs db-fold-left bulk-size . files)
@@ -559,7 +561,7 @@
 					    (let ((now (time->seconds (current-time))))
 					      (if (> (- now timestamp) *reopen-delay*)
 						(begin
-						  (close-or-report port file)
+						  (close-or-report port)
 						  (list (open-input-file-or-ignore file)
 							now))
 						(list port timestamp)))))
