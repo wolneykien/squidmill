@@ -879,7 +879,7 @@
 	    (display-message "Unable to write the PID-file")
 	    (raise e))
 	  (lambda ()
-	    (with-output-to-file (list 'path: pidfile-name 'create: #t)
+	    (with-output-to-file `(path: ,pidfile-name create: #t)
 	      (lambda ()
 		(display pid)
 		(newline)))
@@ -1012,7 +1012,7 @@
 	(if *log-port*
 	  (display-message "*** Log started"))
 	(let* ((pid (and background
-			 (detach (string? background))))
+			 (detach (and (string? background) background))))
 	       (close-pid (lambda ()
 			    (if pid
 			      (delete-pidfile background)))))
