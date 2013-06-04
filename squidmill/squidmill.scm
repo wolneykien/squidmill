@@ -16,6 +16,7 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 (define *debug* #f)
+(define *log-port* #f)
 
 (define (fold-right kons knil clist1)
   (let f ((list1 clist1))
@@ -25,6 +26,7 @@
 
 (define (display-error prefix code message . args)
   (let ((port (or (and args (pair? args) (car args))
+		  *log-file*
 		  (current-error-port))))
     (if prefix
 	(display prefix port)
@@ -58,6 +60,7 @@
 
 (define (report-exception ex . args)
   (let ((port (or (and args (pair? args) (car args))
+		  *log-file*
 		  (current-error-port))))
     (cond
      ((sqlite3-error? ex)
@@ -145,8 +148,9 @@
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
-     (pp debug-stm (current-error-port))
-     (db-fold-left ,fn ,seed debug-stm)))
+     (pp debug-stm (or *log-file*
+		       (current-error-port)))
+     (db-fold-left ,fn ,seed ,stm)))
 
 (define (stub . args)
   (values #f #f))
@@ -773,10 +777,11 @@
         (make-db-fold-left-thread-safe db-fold-left))
       (make-db-fold-left-thread-safe db-fold-left))))
 
-(define (make-ipc-db-fold-left socket debug)
+(define (make-ipc-db-fold-left socket)
   (lambda (fn seed stm)
-    (if debug
-      (pp stm (current-error-port)))
+    (if *debug*
+      (pp stm (or *log-file*
+		  (current-error-port))))
     (write stm socket)
     (newline socket)
     (force-output socket 1)
@@ -862,21 +867,6 @@
   (c-lambda () int
     "___result = getpid ();"))
 
-(define _stderr->logfile
-  (c-lambda (char-string) int
-#<<c-lambda-end
-  if ((___result = open (___arg1, O_CREAT | O_APPEND | O_WRONLY)) > 0) {
-    ___result = dup2 (___result, 2);
-  }
-c-lambda-end
-  ))
-
-(define (stderr->logfile logfile-name)
-  (let ((log-fd (_stderr->logfile logfile-name)))
-    (if (> log-fd 0)
-      log-fd
-      (raise (cons (lasterror) (lasterror->string (lasterror)))))))
-
 (define (detach pidfile-name)
   (if (= 0 (daemon 0 0))
     (let ((pid (getpid)))
@@ -941,7 +931,7 @@ c-lambda-end
 	          (let ((db-fold-left (adjust-db-fold-left db-fold-left debug)))
 		    (values db-fold-left db-close socket))))
 	      (if (and socket (port? socket))
-		(values (make-ipc-db-fold-left socket debug)
+		(values (make-ipc-db-fold-left socket)
 			(lambda ()
 			  (debug-message "Close client socket" #f socket-path)
 			  (close-port socket))
@@ -957,11 +947,7 @@ c-lambda-end
 			      (if db-at-hand
 				(init-sql-server db-fold-left socket)
 				(begin
-				  (if debug
-				    (begin
-				      (display "No DB at hand. SQL-server disabled"
-					       (current-error-port))
-				      (newline (current-error-port))))
+				  (display-error #f #f "No DB at hand. SQL-server disabled")
 				  #f)))))
         (with-exception-catcher
           (lambda (e)
@@ -1004,9 +990,7 @@ c-lambda-end
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
               summary debug background log-file . input-files)
-  (set! *debug* debug)
-  (let ((log-fd (and log-file (string? log-file)
-		     (stderr->logfile log-file)))
+  (let ((log-port (and log-file (open-output-file log-file)))
 	(pid (and background
 		  (detach (string? background)))))
     (with-exception-catcher
@@ -1015,8 +999,16 @@ c-lambda-end
 	  (report-exception e))
 	(if pid
 	  (delete-pidfile background))
+	(set! *debug* #f)
+	(if log-port
+	  (begin
+	    (display-message "*** Log finished")
+	    (close-or-report log-port log-file)
+	    (set! *log-port* #f)))
 	(raise e))
       (lambda ()
+	(set! *debug* debug)
+	(set! *log-port* log-port)
 	(apply do-main db-name socket-path bulk-size follow sdate edate ident-pat
 	       uri-pat minsize maxsize limit round-data report-format
 	       summary debug input-files)))))
