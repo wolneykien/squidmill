@@ -873,8 +873,8 @@
     "___result = getpid ();"))
 
 (define (raise-lasterror)
-  (let ((code (lasterror))
-	(message (lasterror->string code)))
+  (let* ((code (lasterror))
+	 (message (lasterror->string code)))
     (error message code)))
 
 (define (detach pidfile-name)
