@@ -15,6 +15,7 @@ touch "$DIR/$PREFIX.access.log"
 
 echo "Call squidmill in background to insert the written records in follow mode"
 echo "See $PREFIX.squidmill.log for details"
+trap "terminate_squidmill \"$DIR/$PREFIX.squidmill.pid\"" EXIT HUP INT QUIT TERM
 run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -F "$DIR/$PREFIX.access.log"
 
 echo "Write the first $COUNT records to the test log file"
@@ -32,5 +33,3 @@ assert_written "$DIR/$PREFIX.access.log" -eq $((COUNT * 2))
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 2 - 1))
 check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 2)) 'access_log'
 check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 2 * SIZE)) 'access_log'
-
-terminate_squidmill "$DIR/$PREFIX.squidmill.pid"

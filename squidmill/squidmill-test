@@ -12,7 +12,7 @@ ls -1 "${TEST_DIR%/}" | grep '^[0-9]\+-' | sort | (
 	if [ -x "${TEST_DIR%/}/$test" ]; then
 	    echo -n "Executing ${TEST_DIR%/}/$test..."
 	    rm -f "${TEST_DIR%/}/$test.log"
-	    if PREFIX="$test" "${TEST_DIR%/}/$test" 1>"${TEST_DIR%/}/$test.log" 2>&1; then
+	    if ( PREFIX="$test" "${TEST_DIR%/}/$test" ) 1>"${TEST_DIR%/}/$test.log" 2>&1; then
 		echo " OK"
 		passed=$((passed + 1))
 	    else
