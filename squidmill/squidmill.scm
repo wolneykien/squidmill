@@ -522,7 +522,7 @@
 	   (let ((bulk (process-log add-event port)))
 	     (and bulk
 		  (or (null? bulk)
-		      (bulk-insert db-fold-left bulk))))))))
+		      (and (bulk-insert db-fold-left bulk) #t))))))))
 
 (define (close-or-report port path)
   (if (and port (not (equal? (current-input-port) port)))
@@ -611,7 +611,9 @@
 		  (close-or-report port file)
 		  (raise e))
 		(lambda ()
-		  (add-log port)
+		  (let loop ()
+		    (if (add-log port)
+		      (loop)))
 		  (close-or-report port file))))))
 	files))))
 
