@@ -203,13 +203,33 @@
        (commit-proc db-fold-left)
        res))))
 
+(define union-join
+  (make-string-join " union "))
+
 (define (bulk-insert db-fold-left bulk)
   (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
     (lambda ()
       (db-fold-left stub #f
         (string-append
           "insert or ignore into access_log" " "
-          (apply (make-string-join " union ") bulk))))))
+          (apply union-join bulk))))))
+
+(define (make-bulk-insert maxrows)
+  (let ((row-count (and maxrows
+			(rowcount db-fold-left "access_log"))))
+    (lambda (db-fold-left bulk)
+      (if (not (null? bulk))
+	(begin
+	  (bulk-insert db-fold-left bulk)
+	  (if row-count
+	    (begin
+	      (set! row-count (+ row-count (length bulk)))
+	      (if (> row-count maxrows)
+		(begin
+		  (round-all-logs db-fold-left)
+		  (set! row-count
+			(- row-count
+			   (rowcount db-fold-left "access_log"))))))))))))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
@@ -257,6 +277,8 @@
     (init-table db-fold-left "monthly_log")))
 
 (define (round-log db-fold-left from-table to-table age-note time-template)
+  (debug-message "Round the database data" #f
+		 (string-append from-table " -> " to-table))
   (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
     (lambda ()
       (let ((threshold-condition
@@ -288,25 +310,26 @@
   (round-log db-fold-left "daily_log" "monthly_log"
               "1 year" "%Y-%m"))
 
-(define (round-all-logs db-fold-left)
-  (debug-message "Round the database data...")
-  (log->hourly db-fold-left)
-  (hourly->daily db-fold-left)
-  (daily->monthly db-fold-left))
-
-(define (init-rounder period db-fold-left)
-  (debug-message "Init the rounder" #f
-		 (string-append "every "
-				(number->string period)
-				" s"))
-  (make-thread
+(define (rowcount db-fold-left table-name)
+  (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
     (lambda ()
-      (let loop ()
-        (thread-sleep! period)
-        (round-all-logs db-fold-left)
-	(if (not (thread-receive 0 #f))
-	  (loop))))
-    "rounder"))
+      (db-fold-left
+        (lambda (seed row-count)
+	  (values #f row-count))
+	#f
+	(string-append "select count(*) from " table-name)))))
+
+
+(define (round-all-logs db-fold-left maxrows)
+  (if (or (not maxrows)
+	  (> (rowcount db-fold-left "access_log") maxrows))
+    (log->hourly db-fold-left))
+  (if (or (not maxrows)
+	  (> (rowcount db-fold-left "hourly_log") maxrows))
+    (hourly->daily db-fold-left))
+  (if (or (not maxrows)
+	  (> (rowcount db-fold-left "daily_log") maxrows))
+    (daily->monthly db-fold-left)))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
   (if (or stime etime (and ident-pat
@@ -450,23 +473,19 @@
 
 (define *read-log-delay* 0.01)
 
-(define (process-log add-event port on-exception)
+(define (process-log add-event port)
   (let loop ((bulk #f)
 	     (ln (read-line port)))
     (if (not (eof-object? ln))
-      (with-exception-catcher
-        (lambda (e)
-	  (on-exception bulk e))
-	(lambda ()
-	  (let ((bulk (apply add-event bulk
-			     (string-tokenize ln '(#\space #\tab #\newline)))))
-	    (if (null? bulk)
-	      bulk
-	      (loop bulk
-		    (read-line port))))))
+      (let ((bulk (apply add-event
+			 bulk
+			 (string-tokenize ln '(#\space #\tab #\newline)))))
+	(if (null? bulk)
+	  bulk
+	  (loop bulk (read-line port))))
       bulk)))
 
-(define (make-add-event db-fold-left bulk-size)
+(define (make-add-event db-fold-left bulk-insert bulk-size)
   (lambda (bulk timestamp elapsed client action/code size method uri ident . other-fields)
     (let ((bulk (apply add-event (or bulk '()) timestamp elapsed client
 		       action/code size method uri ident other-fields)))
@@ -495,17 +514,12 @@
 (define *reopen-delay* 0.1)
 (define *read-delay* 0.01)
 
-(define (make-add-log db-fold-left bulk-size)
-  (let ((add-event (make-add-event db-fold-left bulk-size))
-	(on-exception
-	  (lambda (bulk e)
-	    (with-exception-catcher report-and-ignore
-	      (lambda ()
-		 (bulk-insert db-fold-left bulk)))
-	    (raise e))))
+(define (make-add-log db-fold-left bulk-size maxrows)
+  (let* ((bulk-insert (make-bulk-insert maxrows))
+	 (add-event (make-add-event db-fold-left bulk-insert bulk-size)))
     (lambda (port)
       (and port
-	   (let ((bulk (process-log add-event port on-exception)))
+	   (let ((bulk (process-log add-event port)))
 	     (and bulk
 		  (or (null? bulk)
 		      (bulk-insert db-fold-left bulk))))))))
@@ -518,10 +532,10 @@
 	  (debug-message "Close file" #f path))
 	(close-port port)))))
 
-(define (follow-add-logs db-fold-left bulk-size . files)
+(define (follow-add-logs db-fold-left bulk-size maxrows . files)
   (if (not (null? files))
     (debug-message "Follow the files until interrupted"))
-  (let ((add-log (make-add-log db-fold-left bulk-size))
+  (let ((add-log (make-add-log db-fold-left bulk-size maxrows))
 	(inputs (map (lambda (file)
 		       (list file
 			     (open-input-file-or-ignore file #f)
@@ -573,7 +587,9 @@
 		   (cdr inputs))))
 	      (car inputs))))))))
 
-(define (add-logs db-fold-left bulk-size follow . files)
+(define (add-logs db-fold-left bulk-size follow maxrows . files)
+  (if maxrows
+    (round-all-logs db-fold-left maxrows))
   (debug-message "Add logs from files" #f
 		 (if (not (null? files))
 		   (fold-right (lambda (file tail)
@@ -584,8 +600,8 @@
 			       files)
 		   "(no files)"))
   (if follow
-    (apply follow-add-logs db-fold-left bulk-size files)
-    (let ((add-log (make-add-log db-fold-left bulk-size)))
+    (apply follow-add-logs db-fold-left bulk-size maxrows files)
+    (let ((add-log (make-add-log db-fold-left bulk-size maxrows)))
       (for-each
         (lambda (file)
 	  (let ((port (open-input-file-or-ignore file #f)))
@@ -628,8 +644,8 @@
       "    -F                Follow mode"
       " "
       "Rounding options:"
-      "    -R [PERIOD]       Round old data to save space (and reporting time)."
-      "                      Do rounding every PERIOD mins, if specified"
+      "    -R [MAXROWS]      Round old data to save space (and reporting time)."
+      "                      Do rounding for every MAXROWS records, if specified"
       " "
       "Reporting options:"
       "    -r [FORMAT]       Report format. Default is plaintext."
@@ -955,10 +971,6 @@
 		(values #f #f #f)))))))
     (lambda (db-fold-left db-close socket)
       (let* ((db-at-hand (and db-fold-left (or socket (not socket-path))))
-	     (rounder (and round-data (not (eq? round-data #t))
-			   (if db-at-hand
-			     (init-rounder (* round-data 60) db-fold-left)
-			     (raise "No DB at hand. Rounding isn't possible"))))
 	     (sql-server (and socket db-fold-left
 			      (if db-at-hand
 				(init-sql-server db-fold-left socket)
@@ -967,26 +979,27 @@
 				  #f)))))
         (with-exception-catcher
           (lambda (e)
-            (close-all db-close sql-server rounder)
+            (close-all db-close sql-server)
             (raise e))
           (lambda ()
             (if db-at-hand
               (init-db db-fold-left))
-            (if rounder
-	      (begin
-		(debug-message "Start the rounder")
-		(thread-start! rounder)))
 	    (if sql-server
 	      (begin
 		(debug-message "Start the SQL server")
 		(thread-start! sql-server)))
 	    (if (not (null? input-files))
 	      (if db-fold-left
-		(apply add-logs db-fold-left bulk-size follow input-files)
+		(apply add-logs db-fold-left bulk-size follow
+		                (and (number? round-data)
+				     round-data)
+				input-files)
 		(raise "No DB or socket connection. Adding data isn't possible")))
-	    (if (eq? round-data #t)
+	    (if round-data
 	      (if db-at-hand
-		(round-all-logs db-fold-left)
+		(round-all-logs db-fold-left
+				(and (number? round-data)
+				     round-data))
 		(raise "No DB at hand. Rounding isn't possible")))
 	    (if report-format
 	      (if db-fold-left
@@ -994,11 +1007,9 @@
 			   sdate edate minsize maxsize
 			   ident-pat uri-pat limit summary)
 		(raise "No DB or socket connection. Reporting isn't possible")))
-	    (if rounder
-	      (thread-join! rounder))
 	    (if sql-server
 	      (thread-join! sql-server))
-	    (close-all db-close sql-server rounder)))))))
+	    (close-all db-close sql-server)))))))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
