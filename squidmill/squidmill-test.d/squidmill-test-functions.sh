@@ -23,7 +23,7 @@ print_log_record()
 
 # Outputs the specified number of records.
 # Optionally, a starting timestamp value (int) can
-# be specified (default to 0).
+# be specified (defaults to 0).
 #
 # args: number-of-records [start-timestamp]
 print_log()
@@ -180,7 +180,6 @@ check_db_sum()
     fi
 }
 
-TAIL_COUNT=100000
 # Checks if a record with the specified timestamp was
 # passed into the squidmill DB by analysing the squidmill
 # debug log file.
@@ -188,16 +187,22 @@ TAIL_COUNT=100000
 # args: debug-log-filename timestamp
 timestamp_passed()
 {
-    tail -$TAIL_COUNT "$1" | grep -q "^\"insert or ignore into access_log select $2.000,"
+    cat "$1" | grep -q "^\"insert or ignore into access_log select $2.000,"
 }
 
+DEFAULT_TIMEOUT=10
 # Waits for the record with the specified timestamp to be
 # passed into the squidmill DB by analysing the squidmill
-# debug log file.
+# debug log file. Optionally a timeout in seconds can be
+# specified. Default is $DEFAULT_TIMEOUT.
 #
-# args: debug-log-filename timestamp
+# args: debug-log-filename timestamp [timeout]
 wait_for_timestamp()
 {
     echo "Waiting for the record $1 to be passed into the DB..."
-    grep -q -m 1 "^\"insert or ignore into access_log select $2.000," <( tail -$TAIL_COUNT --pid=$! -f "$1" ); kill $!
+
+    sleep ${3:-DEFAULT_TIMEOUT} &
+    local pid=$!
+
+    tail -n +0 --pid=$pid -f | ( grep -q -m 1 "^\"insert or ignore into access_log select $2.000," && kill -PIPE $pid )
 }
