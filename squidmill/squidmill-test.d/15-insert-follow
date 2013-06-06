@@ -15,8 +15,9 @@ touch "$DIR/$PREFIX.access.log"
 
 echo "Call squidmill in background to insert the written records in follow mode"
 echo "See $PREFIX.squidmill.log for details"
-trap "terminate_squidmill \"$DIR/$PREFIX.squidmill.pid\"" EXIT HUP INT QUIT TERM
 run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -F "$DIR/$PREFIX.access.log"
+pid=$(read_pid "$DIR/$PREFIX.squidmill.pid")
+trap "terminate_squidmill $pid" EXIT HUP INT QUIT TERM
 
 echo "Write the first $COUNT records to the test log file"
 print_log $COUNT 0 >"$DIR/$PREFIX.access.log"

@@ -88,7 +88,9 @@ assert_written()
 
 LIBGAMBC_ARGS=-:daq-
 # Calls squidmill with the specified arguments.
-# Additional $LIBGAMBC_ARGS are added.
+# Additional $LIBGAMBC_ARGS options are added.
+#
+# args: [squidmill-args]
 run_squidmill()
 {
     "$SQUIDMILL" $LIBGAMBC_ARGS "$@"
@@ -118,17 +120,18 @@ read_pid()
 }
 
 # Terminates a squidmill background process
-# with PID in the given file. Optionally a
-# timeout in seconds can be specified.
-# Default is $DEFAULT_TIMEOUT.
+# with the specified PID.
 #
-# args: pidfile [timeout]
+# args: pid
 terminate_squidmill()
 {
-    local pid=$(read_pid "$@")
-    echo "Terminate squidmill ($pid)..."
-    kill $pid && wait $pid
-    echo "Squidmill finished"
+    if kill $1 2>/dev/null; then
+	echo "Wait for squidmill to terminate..."
+	wait $1 ||:
+	echo "Squidmill finished"
+    else
+	echo "Squidmill already finished"
+    fi
 }
 
 # Queries the DB using the sqlite3 command.
