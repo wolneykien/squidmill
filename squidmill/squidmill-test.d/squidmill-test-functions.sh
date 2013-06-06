@@ -62,7 +62,7 @@ check_written()
     local op=${2:--gt}
     local expected=${3:-0}
 
-    [ $file_count $op $expected ]
+    [ $count $op $expected ]
 }
 
 # Compares written count of records to the given count.
@@ -77,11 +77,11 @@ assert_written()
     local op=${2:--gt}
     local expected=${3:-0}
 
-    if [ $file_count $op $expected ]; then
-	echo "$file_count records were written successfully"
+    if [ $count $op $expected ]; then
+	echo "$count records were written successfully"
 	return 0
     else
-	echo "Error -- $file_count records were written"
+	echo "Error -- $count records were written"
 	return 1
     fi
 }
@@ -91,7 +91,7 @@ LIBGAMBC_ARGS=-:daq-
 # Additional $LIBGAMBC_ARGS are added.
 run_squidmill()
 {
-    "$SQUIDMILL" $LIBGAMBC_ARGS
+    "$SQUIDMILL" $LIBGAMBC_ARGS "$@"
 }
 
 DEFAULT_TIMEOUT=10
