@@ -14,11 +14,105 @@ CONTENT="text/html"
 # defined above and the specified timestamp value (int).
 #
 # args: timestamp
-print_log()
+print_log_record()
 {
     printf '%s.000\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 	   "$1" "$ELAPSED" "$CLIENT" "$ACTION_CODE" "$SIZE" \
 	   "$METHOD" "$URI" "$IDENT" "$FROM" "$CONTENT"
+}
+
+# Outputs the specified number of records.
+# Optionally, a starting timestamp value (int) can
+# be specified (default to 0).
+#
+# args: number-of-records [start-timestamp]
+print_log()
+{
+    local max=$1
+    local i=${2:-0}
+
+    echo "Write $max records into the test log file" >&2    
+    while [ $i -lt $max ]; do
+        print_log_record $i
+	i=$((i + 1))
+    done
+}
+
+# Counts the records in the given test log file.
+# Outputs 0 if the file doesn't exist.
+#
+# args: log-file
+count_log()
+{
+    if [ -f "$1" ]; then
+	cat "$DIR/$PREFIX.access.log" | wc -l
+    else
+	echo 0
+    fi
+}
+
+# Compares written count of records to the given count.
+# If no additional arguments are given checks if more than 0
+# records were written to the file.
+#
+# args: log-file [cmp expected-count]
+check_written()
+{
+    local count=$(count_log "$1")
+    local op=${2:--gt}
+    local expected=${3:-0}
+
+    [ $file_count $op $expected ]
+}
+
+# Compares written count of records to the given count.
+# If no additional arguments are given checks if more than 0
+# records were written to the file.
+# Outputs the information messages.
+#
+# args: log-file [cmp expected-count]
+assert_written()
+{
+    local count=$(count_log "$1")
+    local op=${2:--gt}
+    local expected=${3:-0}
+
+    if [ $file_count $op $expected ]; then
+	echo "$file_count records were written successfully"
+	return 0
+    else
+	echo "Error -- $file_count records were written"
+	return 1
+    fi
+}
+
+LIBGAMBC_ARGS=-:daq-
+# Calls squidmill with the specified arguments.
+# Additional $LIBGAMBC_ARGS are added.
+run_squidmill()
+{
+    "$SQUIDMILL" $LIBGAMBC_ARGS
+}
+
+# Waits for the PID to be written into the
+# given PID-file and returns its value.
+#
+# args: pidfile
+read_pid()
+{
+    grep -q -m 1 '^[0-9]' <( tail -$TAIL_COUNT --pid=$! -f "$1" ); kill $!
+}
+
+# Terminates a squidmill background process
+# with PID in the given file.
+#
+# args: pidfile
+terminate_squidmill()
+{
+    echo "Terminate squidmill ($1)..."
+    local pid=$(read_pid "$1")
+    kill $pid && wait $pid
+    echo "Squidmill finished"
 }
 
 # Queries the DB using the sqlite3 command.
@@ -29,51 +123,81 @@ query_db()
     sqlite3 -bail -batch -cmd "$2" -cmd ".quit" "$1" | if [ -n "${3:-}" ]; then cut -d '|' -f $3; else cat; fi
 }
 
-# Checks if a record with the specified timestamp was
-# inserted into the squidmill DB using squidmill debug
-# log file.
+# Compares the record count in all of the specified tables
+# with the given number.
 #
-# args: timestamp debug-log-filename
-timestamp_inserted()
+# args: db-file cmp expected-count table-name [table-name...]
+check_db_count()
 {
-    tail "$2" | grep -q "^\"insert or ignore into access_log select $1.000,"
-}
+    local db="$1"; shift
+    local op="$1"; shift
+    local expected="$1"; shift
+    local db_count=0
+    local table_count
 
-# Waits for the last written timestamp to be processed by squidmill
-#
-# args: access-log debug-log end-time
-wait_for_squidmill()
-{
-    local time=$(date +%s)
-    local end=$3
-    if [ "${end#+}" != "$end" ]; then
-        end=${end#+}
-	end=$((start + end))
-    fi
-    local last=$(tail -1 "$1" | sed -e 's/\.000.*$//')
-    while [ $time -lt $end ] && ! timestamp_inserted $last "$2"; do
-        sleep 0.2
-	time=$(date +%s)
-    done
-}
+    echo "Count the DB ($@) records"
 
-# Terminates or kills squidmill
-#
-# args: pid end-time
-terminate_squidmill()
-{
-    local time=$(date +%s)
-    local end=$3
-    if [ "${end#+}" != "$end" ]; then
-        end=${end#+}
-	end=$((start + end))
-    fi
-    while [ $time -lt $end ] && kill -0 $1 2>/dev/null; do
-        sleep 0.2
-	time=$(date +%s)
+    for t in "$@"; do
+	table_count=$(query_db "$db" "select count(*) from $t")
+	db_count=$((db_count + table_count))
     done
-    if kill -0 $1 2>/dev/null; then
-	kill -9 $1
+
+    if [ $db_count $op $expected ]; then
+	echo "Count OK"
+	return 0
+    else
+	echo "Count error: found $db_count records, expected $expected"
 	return 1
     fi
+}
+
+# Compares the sum of the given column in all of the specified
+# tables with the given number.
+#
+# args: db-file col cmp expected-sum table-name [table-name...]
+check_db_sum()
+{
+    local db="$1"; shift
+    local col="$1"; shift
+    local op="$1"; shift
+    local expected="$1"; shift
+    local db_sum=0
+    local table_sum
+
+    echo "Sum the DB ($@) by the '$col' column"
+
+    for t in "$@"; do
+	table_sum=$(query_db "$db" "select sum($col) from $t")
+	db_sum=$((db_sum + table_sum))
+    done
+
+    if [ $db_sum $op $expected ]; then
+	echo "Sum OK"
+	return 0
+    else
+	echo "Sum error: sum is $db_sum, expected $expected"
+	return 1
+    fi
+}
+
+TAIL_COUNT=100000
+# Checks if a record with the specified timestamp was
+# passed into the squidmill DB by analysing the squidmill
+# debug log file.
+#
+# args: debug-log-filename timestamp
+timestamp_passed()
+{
+    tail -$TAIL_COUNT "$1" | grep -q "^\"insert or ignore into access_log select $2.000,"
+}
+
+# Waits for the record with the specified timestamp to be
+# passed into the squidmill DB by analysing the squidmill
+# debug log file.
+#
+# args: debug-log-filename timestamp
+wait_for_timestamp()
+{
+    echo "Waiting for the record $1 to be passed into the DB..."
+    grep -q -m 1 "^\"insert or ignore into access_log select $2.000," <( tail -$TAIL_COUNT --pid=$! -f "$1" ); kill $!
 }

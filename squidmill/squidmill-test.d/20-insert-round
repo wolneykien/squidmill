@@ -4,119 +4,20 @@
 
 DIR="${0%/*}"
 PREFIX="${PREFIX:-${0##*/}}"
-PERIOD=4
-COUNT=4
-
-# Insert the records rounding the data periodically
-# using Squidmill for the specified number of rounding
-# periods.
-#
-# args: rounding-period number-of-periods
-do_insert_round()
-{
-    local period=$1
-    local period_sec=$(dc -e "5k $period 60 / p q" | sed -e 's/^\./0./')
-    local i=0
-    local j=0
-    local loop=100
-    local max="$2"
-    local start=$(date +%s)
-    local end=$((start + period*max + period/2))
-    
-    touch "$DIR/$PREFIX.access.log"
-
-    echo "Start squidmill in the background. See $PREFIX.squidmill.log for details"
-    "$SQUIDMILL" -D -d "$DIR/$PREFIX.db" -b "$DIR/$PREFIX/squidmill.pid" -L "$DIR/$PREFIX.squidmill.log" -R "$period_sec" -F "$DIR/$PREFIX.access.log"
-    local squidmill_pid=$(cat "$DIR/$PREFIX/squidmill.pid")
-    if [ -z "$squidmill_pid" ]; then
-        echo "No PID-file found"
-	return 1
-    fi
-
-    echo "Write the records for $max.5 periods of $period seconds"
-    local time=$(date +%s)
-    while [ $time -lt $end ]; do
-        j=0
-        while [ $j -lt $loop ]; do
-            print_log $i >>"$DIR/$PREFIX.access.log"
-            i=$((i + 1))
-	    j=$((j + 1))
-	done
-	wait_for_squidmill "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.squidmill.log" $end
-        time=$(date +%s)
-    done
-
-    echo "Time is up: terminate squidmill" 
-    if ! terminate_squidmill $squidmill_pid +5; then
-        echo "Error: additional time is up"
-	return 1
-    fi
-}
+COUNT=5000
+ROUND=600
 
 # Cleanup
-rm -f "$DIR/$PREFIX.squidmill.log"
-rm -f "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
-# Run the test
-do_insert_round $PERIOD $COUNT
+# The test
+print_log $COUNT >"$DIR/$PREFIX.access.log"
 
-file_count=$(if [ -f "$DIR/$PREFIX.access.log" ]; then cat "$DIR/$PREFIX.access.log" | wc -l; else echo 0; fi)
-if [ $file_count -gt 0 ]; then
-    echo "$file_count records written successfully"
-else
-    echo "Error -- no records were written"
-    exit 1
-fi
+echo "Call squidmill in foreground to insert and round the written data"
+echo "See $PREFIX.squidmill.log for details"
+run_squidmill -D -d "$DIR/$PREFIX.db" -R $ROUND -L "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.access.log"
 
-echo "Query the DB to check the result"
-access_count=$(query_db "$DIR/$PREFIX.db" "select count(*) from access_log")
-if [ -n "$access_count" ]; then
-    if [ $access_count -lt $file_count ]; then
-        echo "access_log count OK ($access_count)"
-    else
-	echo "access_log count error: found $access_count records, expected less than $file_count"
-	exit 1
-    fi
-else
-    echo "Unable to get the access_log record count"
-    exit 1
-fi
+assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
 
-access_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from access_log")
-if [ -n "$access_sum_size" ]; then
-    expected_max=$((SIZE * file_count))
-    if [ $access_sum_size -lt $expected_max ]; then
-        echo "access_log size OK ($access_sum_size)"
-    else
-	echo "access_log size error: size is $access_sum_size, expected less than $expected_max"
-	exit 1
-    fi
-else
-    echo "Unable to get the access_log summary size"
-    exit 1
-fi
-
-daily_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from daily_log")
-if [ -z "$daily_sum_size" ]; then
-    echo "Unable to get the daily_log summary size"
-    exit 1
-fi
-hourly_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from hourly_log")
-if [ -z "$hourly_sum_size" ]; then
-    echo "Unable to get the hourly_log summary size"
-    exit 1
-fi
-monthly_sum_size=$(query_db "$DIR/$PREFIX.db" "select sum(size) from monthly_log")
-if [ -z "$monthly_sum_size" ]; then
-    echo "Unable to get the monthly_log summary size"
-    exit 1
-fi
-
-expected=$((SIZE * file_count))
-summary=$((access_sum_size + daily_sum_size + hourly_sum_size + monthly_sum_size))
-if [ $summary -eq $expected ]; then
-    echo "Overall size OK"
-else
-    echo "Overall size error: size is $summary, expected $expected"
-    exit 1
-fi
+check_db_count "$DIR/$PREFIX.db" -eq $((COUNT - ROUND * (COUNT / ROUND))) 'access_log'
+check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * SIZE)) 'access_log' 'hourly_log' 'daily_log' 'monthly_log'

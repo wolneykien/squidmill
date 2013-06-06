@@ -4,14 +4,21 @@
 
 DIR="${0%/*}"
 PREFIX="${PREFIX:-${0##*/}}"
+COUNT=1000
 
 # Cleanup
-rm -f "$DIR/$PREFIX.squidmill.log"
-rm -f "$DIR/$PREFIX.db"
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
-# Copy the previous test result
-cp "$DIR/05-insert.db" "$DIR/$PREFIX.db"
+# The test
+print_log $COUNT >"$DIR/$PREFIX.access.log"
 
-# Run the test
-echo "Insert the same data over again"
-PREFIX="$PREFIX" "$DIR/05-insert" -over
+echo "Call squidmill in foreground to insert the written records"
+echo "See $PREFIX.squidmill.log for details"
+run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.access.log"
+echo "Call squidmill the second time to insert the written records again"
+run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.access.log"
+
+assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
+
+check_db_count "$DIR/$PREFIX.db" -eq $COUNT 'access_log'
+check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * SIZE)) 'access_log'
