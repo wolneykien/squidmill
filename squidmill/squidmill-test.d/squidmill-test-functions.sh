@@ -94,23 +94,39 @@ run_squidmill()
     "$SQUIDMILL" $LIBGAMBC_ARGS
 }
 
+DEFAULT_TIMEOUT=10
 # Waits for the PID to be written into the
 # given PID-file and returns its value.
+# Optionally a timeout in seconds can be
+# specified. Default is $DEFAULT_TIMEOUT.
 #
-# args: pidfile
+# args: pidfile [timeout]
 read_pid()
 {
-    grep -q -m 1 '^[0-9]' <( tail -$TAIL_COUNT --pid=$! -f "$1" ); kill $!
+    echo "Reading the pidfile: $1" >&2
+
+    sleep ${2:-DEFAULT_TIMEOUT} &
+    local pid=$!
+
+    tail -n +0 --pid=$pid -F "$1" | ( grep -m 1 '^[0-9]\+$' && kill -PIPE $pid )
+    if wait $pid; then
+	echo "Unable to read the PID" >&2
+	return 1
+    else
+	echo "PID has been read" >&2
+    fi
 }
 
 # Terminates a squidmill background process
-# with PID in the given file.
+# with PID in the given file. Optionally a
+# timeout in seconds can be specified.
+# Default is $DEFAULT_TIMEOUT.
 #
-# args: pidfile
+# args: pidfile [timeout]
 terminate_squidmill()
 {
-    echo "Terminate squidmill ($1)..."
-    local pid=$(read_pid "$1")
+    local pid=$(read_pid "$@")
+    echo "Terminate squidmill ($pid)..."
     kill $pid && wait $pid
     echo "Squidmill finished"
 }
@@ -190,7 +206,6 @@ timestamp_passed()
     cat "$1" | grep -q "^\"insert or ignore into access_log select $2.000,"
 }
 
-DEFAULT_TIMEOUT=10
 # Waits for the record with the specified timestamp to be
 # passed into the squidmill DB by analysing the squidmill
 # debug log file. Optionally a timeout in seconds can be
@@ -199,10 +214,17 @@ DEFAULT_TIMEOUT=10
 # args: debug-log-filename timestamp [timeout]
 wait_for_timestamp()
 {
-    echo "Waiting for the record $1 to be passed into the DB..."
+    echo "Waiting for the record $2 to be passed into the DB..."
 
     sleep ${3:-DEFAULT_TIMEOUT} &
     local pid=$!
 
-    tail -n +0 --pid=$pid -f | ( grep -q -m 1 "^\"insert or ignore into access_log select $2.000," && kill -PIPE $pid )
+    tail -n +0 --pid=$pid -F "$1" | ( grep -q -m 1 "^\"insert or ignore into access_log select $2.000," && kill -PIPE $pid )
+    if wait $pid; then
+	echo "Record hasn't been passed"
+	return 1
+    else
+	echo "Record has been passed"
+	return 0
+    fi
 }
