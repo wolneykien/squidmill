@@ -16,7 +16,6 @@
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 (define *debug* #f)
-(define *log-port* #f)
 
 (define (fold-right kons knil clist1)
   (let f ((list1 clist1))
@@ -26,7 +25,6 @@
 
 (define (display-error prefix code message . args)
   (let ((port (or (and (not (null? args)) (car args))
-		  *log-port*
 		  (current-error-port))))
     (if prefix
 	(display prefix port)
@@ -60,7 +58,6 @@
 
 (define (report-exception ex . args)
   (let ((port (or (and (not (null? args)) (car args))
-		  *log-port*
 		  (current-error-port))))
     (cond
      ((sqlite3-error? ex)
@@ -151,8 +148,7 @@
 
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
-     (pp debug-stm (or *log-port*
-		       (current-error-port)))
+     (pp debug-stm (current-error-port))
      (db-fold-left ,fn ,seed ,stm)))
 
 (define (stub . args)
@@ -806,8 +802,7 @@
 (define (make-ipc-db-fold-left socket)
   (lambda (fn seed stm)
     (if *debug*
-      (pp stm (or *log-port*
-		  (current-error-port))))
+      (pp stm (current-error-port)))
     (write stm socket)
     (newline socket)
     (force-output socket 1)
@@ -1019,25 +1014,27 @@
   (set! *debug* debug)
   (let* ((log-port (and log-file
 			(open-output-file `(path: ,log-file append: #t create: maybe))))
+	 (stderr (current-error-port))
 	 (close-log! (lambda ()
 		       (if log-port
 			 (begin
 			   (display-message "*** Log finished")
-			   (close-port log-port)
-			   (set! *log-port* #f))))))
+			   (current-error-port stderr)
+			   (close-port log-port))))))
     (with-exception-catcher
       (lambda (e)
 	(report-exception e)
 	(if (and *debug* (not (signal-exception? e)))
 	  (continuation-capture
 	   (lambda (c)
-	     (display-continuation-backtrace c (or log-port (current-error-port))))))
+	     (display-continuation-backtrace c (current-error-port)))))
 	(close-log!)
 	(raise e))
       (lambda ()
-	(set! *log-port* log-port)
-	(if *log-port*
-	  (display-message "*** Log started"))
+	(if log-port
+	  (begin
+	    (current-error-port log-port)
+	    (display-message "*** Log started")))
 	(let* ((pid (and background
 			 (detach (and (string? background) background))))
 	       (close-pid (lambda ()
