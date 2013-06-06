@@ -64,7 +64,7 @@ start()
                  --lockfile "$LOCKFILE" \
                  --displayname squidmill \
                  -- /bin/su -s /bin/sh -l "$SQUIDLOGUSER" \
-                            -c "'/usr/sbin/squidmill -d \"$DBFILE\" -B 1 ${ROUNDING_PERIOD:+-R $ROUNDING_PERIOD} -F \"$SQUIDLOGFILE\"'"
+                            -c "'/usr/sbin/squidmill -d \"$DBFILE\" -B 1 ${MAXRECORDS:+-R $MAXRECORDS} -F \"$SQUIDLOGFILE\"'"
 }
 
 stop()

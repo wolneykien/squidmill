@@ -5,7 +5,7 @@ Description=Squid access logfile processor
 [Service]
 EnvironmentFile=/etc/sysconfig/squidmill
 User=squid
-ExecStart=/usr/sbin/squidmill -d $DBFILE -B 1 -R $ROUNDING_PERIOD -F $SQUIDLOGFILE
+ExecStart=/usr/sbin/squidmill -d $DBFILE -B 1 -R $MAXRECORDS -F $SQUIDLOGFILE
 
 [Install]
 WantedBy=multi-user.target
