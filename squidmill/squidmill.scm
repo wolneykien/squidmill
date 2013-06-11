@@ -199,6 +199,7 @@ c-lambda-end
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
      (pp debug-stm (current-error-port))
+     (force-output (current-error-port) 1)
      (db-fold-left ,fn ,seed ,stm)))
 
 (define (stub . args)
