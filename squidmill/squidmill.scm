@@ -553,10 +553,10 @@ c-lambda-end
    (lambda ()
      (if (equal? path "-")
        (current-input-port)
-       (begin
+       (let ((port (open-input-file path)))
 	 (if (not existing-port)
 	   (debug-message "Open file" #f path))
-	 (open-input-file path))))))
+	 port)))))
 
 (define *reopen-delay* 0.1)
 (define *read-delay* 0.01)
