@@ -78,10 +78,10 @@ assert_written()
     local expected=${3:-0}
 
     if [ $count $op $expected ]; then
-	echo "$count records were written successfully"
+	echo "The file $1 contains $count records"
 	return 0
     else
-	echo "Error -- $count records were written"
+	echo "Error: the file $1 contains $count records"
 	return 1
     fi
 }
