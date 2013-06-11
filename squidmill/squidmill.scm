@@ -554,8 +554,7 @@ c-lambda-end
      (if (equal? path "-")
        (current-input-port)
        (let ((port (open-input-file path)))
-	 (if (not existing-port)
-	   (debug-message "Open file" #f path))
+	 (debug-message "Open file" #f path)
 	 port)))))
 
 (define *reopen-delay* 0.1)
@@ -584,15 +583,18 @@ c-lambda-end
     (debug-message "Follow the files until interrupted"))
   (let ((add-log (make-add-log db-fold-left bulk-size maxrows))
 	(inputs (map (lambda (file)
-		       (list (cons file (stat file))
-			     (open-input-file-or-ignore file #f)
-			     0))
+		       (let ((file-stat (stat file))
+			     (file-port (open-input-file-or-ignore file #f)))
+			 (list (cons file file-stat)
+			       file-port
+			       0
+			       (and (not (null? file-stat)) file-port))))
 		     files)))
     (with-exception-catcher
       (lambda (e)
 	(for-each
 	 (lambda (input)
-	   (apply (lambda (file port timestamp)
+	   (apply (lambda (file port timestamp accessible)
 		    (close-or-report port (car file)))
 		  input))
 	 inputs)
@@ -608,16 +610,20 @@ c-lambda-end
 	      (if (not (null? res-inputs))
 		(loop-inputs #t '() res-inputs)))
 	    (apply
-	      (lambda (file port timestamp)
+	      (lambda (file port timestamp accessible)
 		(if (add-log port)
-		  (loop-inputs
-		   #f
-		   (append res-inputs
-			   (list
-			    (list file
-				  port
-				  (time->seconds (current-time)))))
-		   (cdr inputs))
+		  (begin
+		    (if (not accessible)
+		      (debug-message "File become accessible" #f (car file)))
+		    (loop-inputs
+		     #f
+		     (append res-inputs
+			     (list
+			      (list file
+				    port
+				    (time->seconds (current-time))
+				    #t)))
+		     (cdr inputs)))
 		  (loop-inputs
 		   relax
 		   (append res-inputs
@@ -629,12 +635,23 @@ c-lambda-end
 					   (or (null? (cdr file))
 					       (not (= (cadr file) (car new-stat)))
 					       (not (= (caddr file) (cadr new-stat)))))
-				    (list (cons (car file) new-stat)
-					  (and (close-or-report port (car file))
-					       (open-input-file-or-ignore (car file) port))
-					  now)
-				    (list file port now)))
-				(list file port timestamp)))))
+				    (let ((new-port (and (close-or-report port (car file))
+							 (open-input-file-or-ignore (car file) port))))
+				      (if (and (not accessible)
+					       (not (null? new-stat)) new-port)
+					(debug-message "File become accessible" #f (car file)))
+				      (list (cons (car file) new-stat)
+					    new-port
+					    now
+					    (and (not (null? new-stat)) new-port)))
+				    (if (and accessible
+					     (null? new-stat)
+					     (not (null? (cdr file))))
+				      (begin
+					(debug-message "File become inaccessible" #f (car file))
+					(list file port now #f))
+				      (list file port now accessible))))
+				(list file port timestamp accessible)))))
 		   (cdr inputs))))
 	      (car inputs))))))))
 
