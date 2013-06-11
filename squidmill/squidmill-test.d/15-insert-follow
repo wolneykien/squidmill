@@ -34,3 +34,13 @@ assert_written "$DIR/$PREFIX.access.log" -eq $((COUNT * 2))
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 2 - 1))
 check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 2)) 'access_log'
 check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 2 * SIZE)) 'access_log'
+
+echo "Remove the file on disk"
+rm "$DIR/$PREFIX.access.log"
+echo "Write the third $COUNT records to the re-created test log file"
+print_log $COUNT $((COUNT * 2)) >"$DIR/$PREFIX.access.log"
+assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
+
+wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 3 - 1))
+check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 3)) 'access_log'
+check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 3 * SIZE)) 'access_log'
