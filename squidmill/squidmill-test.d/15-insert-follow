@@ -10,9 +10,6 @@ COUNT=1000
 rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
 # The test
-echo "Create the empty test log file"
-touch "$DIR/$PREFIX.access.log"
-
 echo "Call squidmill in background to insert the written records in follow mode"
 echo "See $PREFIX.squidmill.log for details"
 run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -F "$DIR/$PREFIX.access.log"

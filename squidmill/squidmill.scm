@@ -544,9 +544,10 @@ c-lambda-end
 (define (open-input-file-or-ignore path existing-port)
   (with-exception-catcher
    (lambda (e)
-     (if (and existing-port (no-such-file-or-directory-exception? e))
+     (if (no-such-file-or-directory-exception? e)
        (begin
-	 (debug-message "File disappeared" #f path)
+	 (if existing-port
+	   (debug-message "File disappeared" #f path))
 	 #f)
        (raise e)))
    (lambda ()
