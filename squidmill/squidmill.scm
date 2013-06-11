@@ -261,7 +261,7 @@ c-lambda-end
           "insert or ignore into access_log" " "
           (apply union-join bulk))))))
 
-(define (make-bulk-insert maxrows)
+(define (make-bulk-insert db-fold-left maxrows)
   (let ((row-count (and maxrows
 			(rowcount db-fold-left "access_log"))))
     (lambda (db-fold-left bulk)
@@ -562,7 +562,7 @@ c-lambda-end
 (define *read-delay* 0.01)
 
 (define (make-add-log db-fold-left bulk-size maxrows)
-  (let* ((bulk-insert (make-bulk-insert maxrows))
+  (let* ((bulk-insert (make-bulk-insert db-fold-left maxrows))
 	 (add-event (make-add-event db-fold-left bulk-insert bulk-size)))
     (lambda (port)
       (and port
