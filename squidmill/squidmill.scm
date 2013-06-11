@@ -15,6 +15,56 @@
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+(c-declare "
+#include <errno.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+")
+
+(define lasterror
+  (c-lambda () int
+    "___result = errno;"))
+
+(define lasterror->string
+  (c-lambda (int) char-string
+    "___result = strerror (___arg1);"))
+
+(define daemon
+  (c-lambda (int int) int
+    "___result = daemon (___arg1, ___arg2);"))
+
+(define getpid
+  (c-lambda () int
+    "___result = getpid ();"))
+
+(c-define (stat->list dev ino mode uid gid atime mtime ctime)
+	  (long long int int int long long long) scheme-object "stat2list" ""
+  (list dev ino mode uid gid atime mtime ctime))
+
+(c-define (empty-list) () scheme-object "empty_list" ""
+  '())
+
+(define stat
+  (c-lambda (char-string) scheme-object
+#<<c-lambda-end
+struct stat sb;
+
+if (stat (___arg1, &sb) == 0) {
+  ___result = stat2list (sb.st_dev, sb.st_ino, sb.st_mode, sb.st_uid, sb.st_gid, sb.st_atime, sb.st_mtime, sb.st_ctime);
+} else {
+  ___result = empty_list ();
+}
+c-lambda-end
+  ))
+
+(define (raise-lasterror)
+  (let* ((code (lasterror))
+	 (message (lasterror->string code)))
+    (error message code)))
+
 (define *debug* #f)
 
 (define (fold-right kons knil clist1)
@@ -533,7 +583,7 @@
     (debug-message "Follow the files until interrupted"))
   (let ((add-log (make-add-log db-fold-left bulk-size maxrows))
 	(inputs (map (lambda (file)
-		       (list file
+		       (list (cons file (stat file))
 			     (open-input-file-or-ignore file #f)
 			     0))
 		     files)))
@@ -542,7 +592,7 @@
 	(for-each
 	 (lambda (input)
 	   (apply (lambda (file port timestamp)
-		    (close-or-report port file))
+		    (close-or-report port (car file)))
 		  input))
 	 inputs)
 	(raise e))
@@ -571,15 +621,20 @@
 		   relax
 		   (append res-inputs
 			   (list
-			    (append (list file)
-				    (let ((now (time->seconds (current-time))))
-				      (if (> (- now timestamp) *reopen-delay*)
-					(begin
-					  (close-or-report port #f)
-					  (list (open-input-file-or-ignore file
-									   port)
-						now))
-					(list port timestamp))))))
+			    (let ((now (time->seconds (current-time))))
+			      (if (> (- now timestamp) *reopen-delay*)
+				(let ((new-stat (stat (car file))))
+				  (if (and (not (null? new-stat))
+					   (or (null? (cdr file))
+					       (not (= (cadr file) (car new-stat)))
+					       (not (= (caddr file) (cadr new-stat)))))
+				    (list (cons (car file) new-stat)
+					  (and (close-or-report port (car file))
+					       (list (open-input-file-or-ignore (car file)
+										port)))
+					  now)
+				    (list file port now)))
+				(list file port timestamp)))))
 		   (cdr inputs))))
 	      (car inputs))))))))
 
@@ -863,36 +918,6 @@
        (if (not (thread-receive 0 #f))
 	 (a-loop (domain-socket-accept socket 0)))))
    "SQL server"))
-
-(c-declare "
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-")
-
-(define lasterror
-  (c-lambda () int
-    "___result = errno;"))
-
-(define lasterror->string
-  (c-lambda (int) char-string
-    "___result = strerror (___arg1);"))
-
-(define daemon
-  (c-lambda (int int) int
-    "___result = daemon (___arg1, ___arg2);"))
-
-(define getpid
-  (c-lambda () int
-    "___result = getpid ();"))
-
-(define (raise-lasterror)
-  (let* ((code (lasterror))
-	 (message (lasterror->string code)))
-    (error message code)))
 
 (define (detach pidfile-name)
   (if (= 0 (daemon 1 1))
