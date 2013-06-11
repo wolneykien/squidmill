@@ -122,15 +122,28 @@ read_pid()
 }
 
 # Terminates a squidmill background process
-# with the specified PID.
+# with the specified PID. Optionally a timeout
+# value can be specified.
 #
-# args: pid
+# args: pid [timeout]
 terminate_squidmill()
 {
+    local timeout=${2:-$DEFAULT_TIMEOUT}
+    timeout=$((timeout * 5))
+    local i=0
+
     if kill $1 2>/dev/null; then
 	echo "Wait for squidmill to terminate..."
-	wait $1 ||:
-	echo "Squidmill finished"
+	while [ $i -lt $timeout ] && kill -0 $1 2>/dev/null; do
+	    sleep 0.2
+	    i=$((i + 1))
+	done
+	if [ $i -eq $timeout ] && kill -0 $1 2>/dev/null; then
+	    echo "Time is up: squidmill is still running"
+	    return 1
+	else
+	    echo "Squidmill finished"
+	fi
     else
 	echo "Squidmill already finished"
     fi
