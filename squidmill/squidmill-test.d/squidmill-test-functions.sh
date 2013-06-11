@@ -29,12 +29,14 @@ print_log_record()
 print_log()
 {
     local max=$1
-    local i=${2:-0}
+    local i=0
+    local t=${2:-0}
 
     echo "Write $max records into the test log file" >&2    
     while [ $i -lt $max ]; do
-        print_log_record $i
+        print_log_record $t
 	i=$((i + 1))
+	t=$((t + 1))
     done
 }
 
