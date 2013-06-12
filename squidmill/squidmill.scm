@@ -267,10 +267,12 @@ c-lambda-end
 	      (set! row-count (+ row-count (length bulk)))
 	      (if (> row-count maxrows)
 		(begin
+		  (debug-message "Row count in 'access_log' has exceeded the limit" #f row-count)
 		  (round-all-logs db-fold-left maxrows)
-		  (set! row-count
-			(- row-count
-			   (rowcount db-fold-left "access_log"))))))))))))
+		  (set! row-count (rowcount db-fold-left "access_log"))
+		  (debug-message "Row count in 'access_log'" #f row-count)
+		  (if (>= row-count maxrows)
+		    (error "Rounding failed to reduce the number of rows in 'access_log'")))))))))))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
