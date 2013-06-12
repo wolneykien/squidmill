@@ -267,7 +267,7 @@ c-lambda-end
 	      (set! row-count (+ row-count (length bulk)))
 	      (if (> row-count maxrows)
 		(begin
-		  (round-all-logs db-fold-left)
+		  (round-all-logs db-fold-left maxrows)
 		  (set! row-count
 			(- row-count
 			   (rowcount db-fold-left "access_log"))))))))))))
