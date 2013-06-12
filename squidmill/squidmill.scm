@@ -180,22 +180,6 @@ c-lambda-end
         (cadr uri-list)
         uri))))
 
-
-(define *db-mutex*
-  (make-mutex 'db-mutex))
-
-(define (make-db-fold-left-thread-safe db-fold-left)
-  (lambda (fn seed stm)
-    (with-exception-catcher
-      (lambda (e)
-        (mutex-unlock! *db-mutex*)
-        (report-and-raise e))
-      (lambda ()
-        (mutex-lock! *db-mutex*)
-        (let ((res (db-fold-left fn seed stm)))
-          (mutex-unlock! *db-mutex*)
-          res)))))
-
 (define-macro (db-fold-left-debug fn seed stm)
   `(let ((debug-stm ,stm))
      (pp debug-stm (current-error-port))
@@ -239,16 +223,26 @@ c-lambda-end
 (define (db-rollback db-fold-left)
   (db-fold-left stub #f "rollback"))
 
+(define *db-mutex*
+  (make-mutex 'db-mutex))
+
 (define (with-transaction db-fold-left begin-proc commit-proc rollback-proc thunk)
-  (begin-proc db-fold-left)
   (with-exception-catcher
-   (lambda (e)
-     (rollback-proc db-fold-left)
-     (raise e))
-   (lambda ()
-     (let ((res (thunk)))
-       (commit-proc db-fold-left)
-       res))))
+    (lambda (e)
+      (mutex-unlock! *db-mutex*)
+      (raise e))
+    (lambda ()
+      (mutex-lock! *db-mutex*)
+      (begin-proc db-fold-left)
+      (with-exception-catcher
+        (lambda (e)
+	  (rollback-proc db-fold-left)
+	  (raise e))
+	(lambda ()
+	  (let ((res (thunk)))
+	    (commit-proc db-fold-left)
+	    (mutex-unlock! *db-mutex*)
+	    res))))))
 
 (define union-join
   (make-string-join " union "))
@@ -358,13 +352,11 @@ c-lambda-end
               "1 year" "%Y-%m"))
 
 (define (rowcount db-fold-left table-name)
-  (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
-    (lambda ()
-      (db-fold-left
-        (lambda (seed row-count)
-	  (values #f row-count))
-	#f
-	(string-append "select count(*) from " table-name)))))
+  (db-fold-left
+    (lambda (seed row-count)
+      (values #f row-count))
+    #f
+    (string-append "select count(*) from " table-name)))
 
 
 (define (round-all-logs db-fold-left maxrows)
@@ -492,12 +484,10 @@ c-lambda-end
                     "")
                   (and (not summary) order-stm)
                   (and (not summary) limit-stm))))
-      (with-transaction db-fold-left db-begin-deferred db-rollback db-rollback
-        (lambda ()
-	  (db-fold-left
-            (make-out-proc out-proc seed limit)
-            (values seed 0)
-            stm))))))
+      (db-fold-left
+       (make-out-proc out-proc seed limit)
+       (values seed 0)
+       stm))))
 
 (define (s-report-output seed . cols)
   (write cols)
@@ -868,9 +858,8 @@ c-lambda-end
 (define (adjust-db-fold-left db-fold-left debug)
   (make-db-fold-left-retry-on-busy
     (if debug
-      (make-db-fold-left-debug
-        (make-db-fold-left-thread-safe db-fold-left))
-      (make-db-fold-left-thread-safe db-fold-left))))
+      (make-db-fold-left-debug db-fold-left)
+      db-fold-left)))
 
 (define (make-ipc-db-fold-left socket)
   (lambda (fn seed stm)
