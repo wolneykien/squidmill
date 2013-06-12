@@ -127,7 +127,7 @@ c-lambda-end
 		     port))
      ((error-exception? ex)
       (let ((message (error-exception-message ex))
-	    (args (error-exception-parameters)))
+	    (args (error-exception-parameters ex)))
 	(display-error #f (and (not (null? args))
 			       (car args))
 		          message
@@ -261,18 +261,17 @@ c-lambda-end
     (lambda (db-fold-left bulk)
       (if (not (null? bulk))
 	(begin
+	  (if (and row-count (> (+ row-count (length bulk)) maxrows))
+	    (begin
+	      (debug-message "Row count in 'access_log' has exceeded the limit" #f row-count)
+	      (round-all-logs db-fold-left maxrows)
+	      (set! row-count (rowcount db-fold-left "access_log"))
+	      (debug-message "Row count in 'access_log'" #f row-count)
+	      (if (>= row-count maxrows)
+		  (error "Rounding failed to reduce the number of rows in 'access_log'"))))
 	  (bulk-insert db-fold-left bulk)
 	  (if row-count
-	    (begin
-	      (set! row-count (+ row-count (length bulk)))
-	      (if (> row-count maxrows)
-		(begin
-		  (debug-message "Row count in 'access_log' has exceeded the limit" #f row-count)
-		  (round-all-logs db-fold-left maxrows)
-		  (set! row-count (rowcount db-fold-left "access_log"))
-		  (debug-message "Row count in 'access_log'" #f row-count)
-		  (if (>= row-count maxrows)
-		    (error "Rounding failed to reduce the number of rows in 'access_log'")))))))))))
+	    (set! row-count (+ row-count (length bulk)))))))))
 
 (define (sqlquote txtval)
   (string-append "'" txtval "'"))
@@ -363,13 +362,13 @@ c-lambda-end
 
 (define (round-all-logs db-fold-left maxrows)
   (if (or (not maxrows)
-	  (> (rowcount db-fold-left "access_log") maxrows))
+	  (>= (rowcount db-fold-left "access_log") maxrows))
     (log->hourly db-fold-left))
   (if (or (not maxrows)
-	  (> (rowcount db-fold-left "hourly_log") maxrows))
+	  (>= (rowcount db-fold-left "hourly_log") maxrows))
     (hourly->daily db-fold-left))
   (if (or (not maxrows)
-	  (> (rowcount db-fold-left "daily_log") maxrows))
+	  (>= (rowcount db-fold-left "daily_log") maxrows))
     (daily->monthly db-fold-left)))
 
 (define (make-where-stm stime etime ident-pat uri-pat)
@@ -649,8 +648,6 @@ c-lambda-end
 	      (car inputs))))))))
 
 (define (add-logs db-fold-left bulk-size follow maxrows . files)
-  (if maxrows
-    (round-all-logs db-fold-left maxrows))
   (debug-message "Add logs from files" #f
 		 (if (not (null? files))
 		   (fold-right (lambda (file tail)
