@@ -26,7 +26,7 @@ max_timestamp=
 sum=
 while [ -z "$max_timestamp" ] && [ -z "$sum" ] ||
       [ ${max_timestamp:-0} -lt $((COUNT - 1)) ] && [ ${sum:-0} -lt $((COUNT * SIZE)) ]; do
-    report="$(run_squidmill -D -L "$PREFIX.squidmill.client.log" -c "$DIR/$PREFIX.squidmill.sock" -r -S)"
+    report="$(run_squidmill -D -L "$DIR/$PREFIX.squidmill.client.log" -c "$DIR/$PREFIX.squidmill.sock" -r -S)"
     if [ $? -ne 0 ]; then
 	echo "Squidmill query failed"
 	exit 1
