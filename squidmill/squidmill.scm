@@ -1007,7 +1007,7 @@ c-lambda-end
 				  #f)))))
         (with-exception-catcher
           (lambda (e)
-            (close-all db-close sql-server)
+            (close-all db-close sql-server socket)
             (raise e))
           (lambda ()
             (if db-at-hand
@@ -1037,7 +1037,7 @@ c-lambda-end
 		(raise "No DB or socket connection. Reporting isn't possible")))
 	    (if sql-server
 	      (thread-join! sql-server))
-	    (close-all db-close sql-server)))))))
+	    (close-all db-close sql-server socket)))))))
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
