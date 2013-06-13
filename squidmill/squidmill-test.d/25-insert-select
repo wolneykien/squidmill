@@ -25,7 +25,7 @@ echo "See $PREFIX.squidmill.client.log for details"
 max_timestamp=
 sum=
 while [ -z "$max_timestamp" ] && [ -z "$sum" ] ||
-      [ $max_timestamp -lt $((COUNT - 1)) ] && [ $sum -lt $((COUNT * SIZE)) ]; do
+      [ ${max_timestamp:-0} -lt $((COUNT - 1)) ] && [ ${sum:-0} -lt $((COUNT * SIZE)) ]; do
     report="$(run_squidmill -D -L "$PREFIX.squidmill.client.log" -c "$DIR/$PREFIX.squidmill.sock" -r -S)"
     if [ $? -ne 0 ]; then
 	echo "Squidmill query failed"
@@ -34,13 +34,13 @@ while [ -z "$max_timestamp" ] && [ -z "$sum" ] ||
     if [ -n "$report" ]; then
 	new_max_timestamp="$(echo "$report" | cut -f1)"
 	new_max_timestamp=${new_max_timestamp%.*}
-	if [ -z "$max_timestamp" ] || [ $new_max_timestamp -gt $max_timestamp ]; then
+	if [ -z "$max_timestamp" ] || [ $new_max_timestamp -gt ${max_timestamp:-0} ]; then
 	    max_timestamp=$new_max_timestamp;
 	else
 	    echo "Something goes wrong: no increase in max timestamp value"
 	    exit 1
 	fi
-	if [ -z "$sum" ] || [ $new_sum -gt $sum ]; then
+	if [ -z "$sum" ] || [ $new_sum -gt ${sum:-0} ]; then
 	    sum=$new_sum;
 	else
 	    echo "Somethins goes wrong: no increase in summary size value"
@@ -55,9 +55,9 @@ while [ -z "$max_timestamp" ] && [ -z "$sum" ] ||
     fi
 done
 
-if [ $max_timestamp -eq $((COUNT - 1)) ]; then
+if [ ${max_timestamp:-0} -eq $((COUNT - 1)) ]; then
     echo "Maximum timestamp test passed"
-    if [ $sum -eq $((COUNT * SIZE)) ]; then
+    if [ ${sum:-0} -eq $((COUNT * SIZE)) ]; then
 	echo "Summary size test passed"
     else
 	echo "Summary size test failed"
