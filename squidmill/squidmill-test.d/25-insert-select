@@ -1,0 +1,69 @@
+#!/bin/sh -efu
+
+. "${0%/*}/squidmill-test-functions.sh"
+
+DIR="${0%/*}"
+PREFIX="${PREFIX:-${0##*/}}"
+COUNT=10000
+
+# Cleanup
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+
+# The test
+echo "Call squidmill with SQL-server in background to insert the written records in follow mode"
+echo "See $PREFIX.squidmill.log for details"
+run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -c "$DIR/$PREFIX.squidmill.sock" -F "$DIR/$PREFIX.access.log"
+pid=$(read_pid "$DIR/$PREFIX.squidmill.pid")
+trap "terminate_squidmill $pid" EXIT HUP INT QUIT TERM
+
+echo "Write the first $COUNT records to the test log file"
+print_log $COUNT 0 >"$DIR/$PREFIX.access.log"
+assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
+
+echo "Call squidmill client in a loop until the expected summary values are reported"
+echo "See $PREFIX.squidmill.client.log for details"
+max_timestamp=
+sum=
+while [ -z "$max_timestamp" ] && [ -z "$sum" ] ||
+      [ $max_timestamp -lt $((COUNT - 1)) ] && [ $sum -lt $((COUNT * SIZE)) ]; do
+    report="$(run_squidmill -D -L "$PREFIX.squidmill.client.log" -c "$DIR/$PREFIX.squidmill.sock" -r -S)"
+    if [ $? -ne 0 ]; then
+	echo "Squidmill query failed"
+	exit 1
+    fi
+    if [ -n "$report" ]; then
+	new_max_timestamp="$(echo "$report" | cut -f1)"
+	new_max_timestamp=${new_max_timestamp%.*}
+	if [ -z "$max_timestamp" ] || [ $new_max_timestamp -gt $max_timestamp ]; then
+	    max_timestamp=$new_max_timestamp;
+	else
+	    echo "Something goes wrong: no increase in max timestamp value"
+	    exit 1
+	fi
+	if [ -z "$sum" ] || [ $new_sum -gt $sum ]; then
+	    sum=$new_sum;
+	else
+	    echo "Somethins goes wrong: no increase in summary size value"
+	    exit 1
+	fi
+	if [ $max_timestamp -lt $((COUNT - 1)) ]; then
+	    sleep 0.5
+	fi
+    else
+	echo "Null report"
+	exit 1
+    fi
+done
+
+if [ $max_timestamp -eq $((COUNT - 1)) ]; then
+    echo "Maximum timestamp test passed"
+    if [ $sum -eq $((COUNT * SIZE)) ]; then
+	echo "Summary size test passed"
+    else
+	echo "Summary size test failed"
+	exit 1
+    fi
+else
+    echo "Maximum timestamp test failed"
+    exit 1
+fi
