@@ -869,7 +869,7 @@ c-lambda-end
     (force-output socket 1)
     (let loop ((seed seed) (row (read socket)))
       (if (string? row)
-	(raise (string-append "Server error: " row))
+	(error (string-append "Server error: " row))
 	(if (and (list? row) (not (null? row)))
 	  (call-with-values
 	    (lambda ()
