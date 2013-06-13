@@ -881,44 +881,54 @@ c-lambda-end
 
 (define *no-client-delay* 0.02)
 
+(define (send-error client e)
+  (write (call-with-output-string ""
+	   (lambda (string-port)
+	     (report-exception e string-port)))
+	 client)
+  (force-output client 1))
+
 (define (init-sql-server db-fold-left socket)
   (make-thread
    (lambda ()
      (debug-message "Waiting for a client to connect...")
      (let a-loop ((client (domain-socket-accept socket 0)))
        (if (and client (port? client))
-	 (let ((send-and-raise
-		(lambda (e)
-		  (write (call-with-output-string ""
-		           (lambda (string-port)
-			     (report-exception e string-port)))
-			 client)
-		  (force-output client 1)
-		  (raise e))))
-	   (with-exception-catcher send-and-raise
-	     (lambda ()
-	       (debug-message "Client connected")
-	       (thread-start!
-	         (make-thread
+	 (with-exception-catcher
+	   (lambda (e)
+	     (send-error client e)
+	     (debug-message "Close client socket")
+	     (close-or-report clinet)
+	     (raise e))
+	   (lambda ()
+	     (debug-message "Client connected")
+	     (thread-start!
+	      (make-thread
+	       (lambda ()
+		 (with-exception-catcher
+		   (lambda (e)
+		     (send-error client e)
+		     (debug-message "Close client socket")
+		     (close-or-report client)
+		     (report-exception e))
 		   (lambda ()
 		     (let r-loop ((stm (read client)))
 		       (if (not (eof-object? stm))
-			 (with-exception-catcher send-and-raise
-			   (lambda ()
-			     (db-fold-left
-			       (lambda (seed . args)
-				 (write args client)
-				 (newline client)
-				 (force-output client 1)
-				 (values #t seed))
-			       #f
-			       stm)
-			     (r-loop (read client))))))
-		       (close-port client)
-		       (debug-message "Client disconnected"))
-		   (string-append "client "
-				  (number->string (time->seconds (current-time))))))
-	       (debug-message "Instance started. Waiting for an other client to connect..."))))
+			 (begin
+			   (db-fold-left
+			     (lambda (seed . args)
+			       (write args client)
+			       (newline client)
+			       (force-output client 1)
+			       (values #t seed))
+			     #f
+			     stm)
+			   (r-loop (read client)))))
+		     (close-port client)
+		     (debug-message "Client disconnected"))))
+	       (string-append "client "
+			      (number->string (time->seconds (current-time))))))
+	     (debug-message "Instance started. Waiting for an other client to connect...")))
 	 (if (not (thread-receive 0 #f))
 	   (thread-sleep! *no-client-delay*)))
        (if (not (thread-receive 0 #f))
