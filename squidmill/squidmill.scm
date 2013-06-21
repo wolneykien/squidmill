@@ -974,18 +974,12 @@ c-lambda-end
 			(begin
 			  (if debug
 			    (report-exception e))
-			  (let ((client-socket
-				 (domain-socket-connect socket-path *socket-timeout*)))
-			    (if client-socket
-			      (debug-message "Open client socket" #f socket-path))
-			    client-socket))
+			  (debug-message "Open client socket" #f socket-path)
+			  (domain-socket-connect socket-path *socket-timeout*))
 			(raise e)))
 		    (lambda ()
-		      (let ((server-socket
-			     (make-domain-socket socket-path *socket-backlog*)))
-			(if server-socket
-			  (debug-message "Open server socket" #f socket-path))
-			server-socket))))))
+		      (debug-message "Open server socket" #f socket-path)
+		      (make-domain-socket socket-path *socket-backlog*))))))
         (with-exception-catcher
           (lambda (e)
             (close-all socket)
