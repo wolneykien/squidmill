@@ -898,7 +898,7 @@ c-lambda-end
 	   (lambda (e)
 	     (send-error client e)
 	     (debug-message "Close client socket")
-	     (close-or-report clinet)
+	     (close-or-report client)
 	     (raise e))
 	   (lambda ()
 	     (debug-message "Client connected")
