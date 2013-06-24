@@ -897,26 +897,28 @@ c-lambda-end
 	 (with-exception-catcher
 	   (lambda (e)
 	     (send-error client e)
-	     (debug-message "Close client socket")
+	     (debug-message "Close client socket" client)
 	     (close-or-report client)
 	     (raise e))
 	   (lambda ()
-	     (debug-message "Client connected")
+	     (debug-message "Client connected" client)
 	     (thread-start!
 	      (make-thread
 	       (lambda ()
 		 (with-exception-catcher
 		   (lambda (e)
 		     (send-error client e)
-		     (debug-message "Close client socket")
+		     (debug-message "Close client socket" client)
 		     (close-or-report client)
 		     (if (signal-exception? e)
 		       (raise e)
 		       (report-exception e)))
 		   (lambda ()
+		     (debug-message "Read the next query" client)
 		     (let r-loop ((stm (read client)))
 		       (if (not (eof-object? stm))
 			 (begin
+			   (debug-message "Execute the received query" client)
 			   (db-fold-left
 			     (lambda (seed . args)
 			       (write args client)
@@ -925,10 +927,12 @@ c-lambda-end
 			       (values #t seed))
 			     #f
 			     stm)
+			   (debug-message "Send end-of-result" client)
 			   (write '() client)
+			   (debug-message "Read the next query" client)
 			   (r-loop (read client)))))
 		     (close-port client)
-		     (debug-message "Client disconnected"))))
+		     (debug-message "Client disconnected" client))))
 	       (string-append "client "
 			      (number->string (time->seconds (current-time))))))
 	     (debug-message "Instance started. Waiting for an other client to connect...")))
