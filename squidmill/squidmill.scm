@@ -967,19 +967,13 @@ c-lambda-end
     (lambda ()
       (let ((socket
 	     (and socket-path
-		  (with-exception-catcher
-		    (lambda (e)
-		      (if (and (domain-socket-exception? e)
-			       (= 98 (domain-socket-exception-code e)))
-			(begin
-			  (if debug
-			    (report-exception e))
-			  (debug-message "Open client socket" #f socket-path)
-			  (domain-socket-connect socket-path *socket-timeout*))
-			(raise e)))
-		    (lambda ()
+		  (if db-name
+		    (begin
 		      (debug-message "Open server socket" #f socket-path)
-		      (make-domain-socket socket-path *socket-backlog*))))))
+		      (make-domain-socket socket-path *socket-backlog*))
+		    (begin
+		      (debug-message "Open client socket" #f socket-path)
+		      (domain-socket-connect socket-path *socket-timeout*))))))
         (with-exception-catcher
           (lambda (e)
             (close-all socket)
