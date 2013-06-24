@@ -929,6 +929,7 @@ c-lambda-end
 			     stm)
 			   (debug-message "Send end-of-result" client)
 			   (write '() client)
+			   (force-output client 1)
 			   (debug-message "Read the next query" client)
 			   (r-loop (read client)))))
 		     (close-port client)
