@@ -30,6 +30,7 @@ while [ -z "$sum" ] || [ ${sum:-0} -lt $((COUNT * SIZE)) ]; do
 	exit 1
     fi
     if [ -n "$report" ]; then
+	new_sum="$(echo "$report" | cut -f2)"
 	if [ -z "$sum" ] || [ $new_sum -gt ${sum:-0} ]; then
 	    sum=$new_sum;
 	else
