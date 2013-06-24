@@ -88,7 +88,7 @@ assert_written()
     fi
 }
 
-LIBGAMBC_ARGS=-:dpq-
+LIBGAMBC_ARGS=-:d-
 # Calls squidmill with the specified arguments.
 # Additional $LIBGAMBC_ARGS options are added.
 #
