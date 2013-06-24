@@ -923,6 +923,7 @@ c-lambda-end
 			       (values #t seed))
 			     #f
 			     stm)
+			   (write '() client)
 			   (r-loop (read client)))))
 		     (close-port client)
 		     (debug-message "Client disconnected"))))
