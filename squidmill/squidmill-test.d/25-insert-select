@@ -39,7 +39,7 @@ while [ $sum -lt $((COUNT * SIZE)) ]; do
 	    sum=$new_sum;
 	    lastinc=$queries
 	elif [ $((queries - lastinc)) -eq $MAXNOINC ]; then
-	    echo "Somethins goes wrong: no increase in summary size in $MAXNOINC queries"
+	    echo "Something goes wrong: no increase in summary size in $MAXNOINC queries"
 	    exit 1
 	fi
 #	if [ $sum -lt $((COUNT * SIZE)) ]; then
@@ -59,8 +59,8 @@ else
 fi
 
 if [ $queries -gt $MINQUERIES ]; then
-    echo "Query count (concurrency) test passed: $queries queries were made"
+    echo "Query count (concurency) test passed: $queries queries were made"
 else
-    echo "Query count (concurrency) test failed: only $queries queries were made"
+    echo "Query count (concurency) test failed: only $queries queries were made"
     exit 1
 fi
