@@ -67,6 +67,21 @@ c-lambda-end
 
 (define *debug* #f)
 
+(define *primordial-mutex* (make-mutex "primordial-mutex"))
+(define *primordial-yield* (make-condition-variable "primordial-yield"))
+
+(define (thread-yield-primordial!)
+  (condition-variable-broadcast! *primordial-yield*)
+  (thread-yield!))
+
+(define (thread-sleep-others! timeout)
+  (let ((until (if (time? timeout)
+		 timeout
+		 (seconds->time (+ (time->seconds (current-time)) timeout)))))
+    (let wait ()
+      (if (mutex-unlock! *primordial-mutex* *primordial-yield* until)
+        (wait)))))
+
 (define (fold-right kons knil clist1)
   (let f ((list1 clist1))
     (if (null? list1)
@@ -509,8 +524,6 @@ c-lambda-end
     (newline)
     seed))
 
-(define *read-log-delay* 0.01)
-
 (define (process-log add-event port)
   (let loop ((bulk #f)
 	     (ln (read-line port)))
@@ -605,6 +618,7 @@ c-lambda-end
 	      (lambda (file port timestamp accessible)
 		(if (add-log port)
 		  (begin
+		    (thread-yield-primordial!)
 		    (if (not accessible)
 		      (debug-message "File become accessible" #f (car file)))
 		    (loop-inputs
@@ -671,7 +685,9 @@ c-lambda-end
 		(lambda ()
 		  (let loop ()
 		    (if (add-log port)
-		      (loop)))
+		      (begin
+			(thread-yield-primordial!)
+			(loop))))
 		  (close-or-report port file))))))
 	files))))
 
@@ -879,8 +895,6 @@ c-lambda-end
 		new-seed
 		(loop new-seed (read socket))))))))))
 
-(define *no-client-delay* 0.02)
-
 (define (send-error client e)
   (write (call-with-output-string ""
 	   (lambda (string-port)
@@ -940,12 +954,15 @@ c-lambda-end
 		 #f)
 	       (lambda ()
 		 (thread-join! (car tail) 0 (car tail))))))
-	(if instance
+	(if (and instance (thread? instance))
 	  (filter (append filtered (list instance))
 		  (cdr tail))
 	  (filter filtered
 		  (cdr tail))))
       filtered)))
+
+(define *no-client-delay* 0.01)
+(define *on-client-delay* 0.1)
 
 (define (init-sql-server db-fold-left socket)
   (make-thread
@@ -964,12 +981,12 @@ c-lambda-end
 	     (lambda ()
 	       (thread-start! instance)
 	       (debug-message "Instance started" client)))
+	   (thread-sleep-others! *on-client-delay*)
 	   (debug-message "Waiting for a client to connect...")
 	   (a-loop (filter-instances (append instance-list (list instance)))
 		   (domain-socket-accept socket 0)))
 	 (begin
-	   (if (not (thread-receive 0 #f))
-	       (thread-sleep! *no-client-delay*))
+	   (thread-sleep-others! *no-client-delay*)
 	   (if (not (thread-receive 0 #f))
 	       (a-loop (filter-instances instance-list)
 		       (domain-socket-accept socket 0)))))))
