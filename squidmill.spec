@@ -12,7 +12,7 @@ Group: System/Configuration/Other
 
 BuildRequires: gambit
 BuildRequires: gambit-sqlite3-devel >= 1.2-alt7
-BuildRequires: gambit-signal-devel >= 1.0-alt11
+BuildRequires: gambit-signal-devel >= 1.1-alt1
 BuildRequires: gambit-dsock-devel >= 1.1-alt1
 BuildRequires: rpm-macros-fillup sqlite3 /usr/bin/dc
 
