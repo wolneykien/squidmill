@@ -842,7 +842,7 @@ c-lambda-end
                   (lambda ()
 		    (cond
 		     ((thread? arg)
-		      (debug-message "Stop the " #f (thread-name arg))
+		      (debug-message "Stop the thread" #f (thread-name arg))
 		      (thread-send arg #t))
 		     ((domain-socket? arg)
 		      (debug-message "Close the server socket" #f (domain-socket-path arg))
@@ -929,6 +929,24 @@ c-lambda-end
 	(string-append "client "
 		       (number->string (time->seconds (current-time))))))))
 
+(define (filter-instances instance-list)
+  (let filter ((filtered '())
+	       (tail instance-list))
+    (if (not (null? tail))
+      (let ((instance
+	     (with-exception-catcher
+	       (lambda (e)
+		 (report-exception e)
+		 #f)
+	       (lambda ()
+		 (thread-join! (car tail) 0 (car tail))))))
+	(if instance
+	  (filter (append filtered (list instance))
+		  (cdr tail))
+	  (filter filtered
+		  (cdr tail))))
+      filtered)))
+
 (define (init-sql-server db-fold-left socket)
   (make-thread
    (lambda ()
@@ -947,23 +965,13 @@ c-lambda-end
 	       (thread-start! instance)
 	       (debug-message "Instance started" client)))
 	   (debug-message "Waiting for a client to connect...")
-	   (a-loop (append instance-list (list instance))
+	   (a-loop (filter-instances (append instance-list (list instance)))
 		   (domain-socket-accept socket 0)))
 	 (begin
-	   (for-each
-	     (lambda (instance)
-	       (with-exception-catcher
-		 (lambda (e)
-		   (report-exception e)
-		   (if (signal-exception? e)
-		     (raise e)))
-		 (lambda ()
-		   (thread-join! instance 0 #f))))
-	     instance-list)
 	   (if (not (thread-receive 0 #f))
 	       (thread-sleep! *no-client-delay*))
 	   (if (not (thread-receive 0 #f))
-	       (a-loop instance-list
+	       (a-loop (filter-instances instance-list)
 		       (domain-socket-accept socket 0)))))))
    "SQL server"))
 
