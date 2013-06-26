@@ -1,5 +1,5 @@
 Name: squidmill
-Version: 2.3
+Version: 2.4
 Release: alt1
 
 Source: %name-%version.tar
@@ -43,6 +43,36 @@ save space and reporting time.
 %_sysconfdir/sysconfig/squidmill
 
 %changelog
+* Thu Jun 27 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt1
+- Update the program internal version number.
+- Bulk insert without an explicit transaction (faster!).
+- Use a mutex/condvar scheme to avoid a CPU hug when adding data.
+- Test the client-server concurrency.
+- Require gambit-signal >= 1.1.
+- Run test squidmill with -:d- only.
+- Write the empty list to the client when the DB-query finishes.
+- Server socket for DB-file, client otherwise.
+- Require gambit-dsock >= 1.1.
+- Add the insert-select test.
+- Check and round the existing data before inserting the new data.
+- Lock the DB-mutex over the whole transaction. Select data with
+  no explicit transaction.
+- Use MAXRECORDS configuration parameter to specify the rounding size.
+- Round every N rows not minutes.
+- Add option for a log-file.
+- Don't panic when an attempt to close an input file failed.
+- Update the license and the description.
+- Use bulk size of 1 by default.
+- Add/implement option to run as daemon (background, pidfile).
+- Add the test to check insertion and rounding in parallel.
+- Add the test to check insertion of the same data over again (thx Paul Wolneykien).
+- Add the test checking the data adding (insertion).
+- Add the sqlite3 to the build requisites for testing.
+- Make the checks when building the package.
+- Implement the SQL-server.
+- Link with gambit-dsock.
+- Remove the DB-reopen stuff.
+
 * Tue May 14 2013 Paul Wolneykien <manowar@altlinux.ru> 2.3-alt1
 - Make use of the rounding period value in the service files.
 - Add configuration option for rounding period, 1440 min by default.
