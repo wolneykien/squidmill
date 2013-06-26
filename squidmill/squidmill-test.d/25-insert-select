@@ -5,50 +5,62 @@
 DIR="${0%/*}"
 PREFIX="${PREFIX:-${0##*/}}"
 COUNT=10000
+MAXNOINC=1000
+MINQUERIES=2
 
 # Cleanup
-rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.squidmill.client.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
 
 # The test
+print_log $COUNT 0 >"$DIR/$PREFIX.access.log"
+assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
+
 echo "Call squidmill with SQL-server in background to insert the written records in follow mode"
 echo "See $PREFIX.squidmill.log for details"
 run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -c "$DIR/$PREFIX.squidmill.sock" -F "$DIR/$PREFIX.access.log"
 pid=$(read_pid "$DIR/$PREFIX.squidmill.pid")
 trap "terminate_squidmill $pid" EXIT HUP INT QUIT TERM
 
-echo "Write the first $COUNT records to the test log file"
-print_log $COUNT 0 >"$DIR/$PREFIX.access.log"
-assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
-
-echo "Call squidmill client in a loop until the expected summary values are reported"
+echo "Calling squidmill client in a loop until the expected summary values are reported"
 echo "See $PREFIX.squidmill.client.log for details"
-sum=
-while [ -z "$sum" ] || [ ${sum:-0} -lt $((COUNT * SIZE)) ]; do
+sum=0
+queries=0
+lastinc=0
+while [ $sum -lt $((COUNT * SIZE)) ]; do
     report="$(run_squidmill -D -L "$DIR/$PREFIX.squidmill.client.log" -c "$DIR/$PREFIX.squidmill.sock" -r -S)"
     if [ $? -ne 0 ]; then
 	echo "Squidmill query failed"
 	exit 1
     fi
+    queries=$((queries + 1))
     if [ -n "$report" ]; then
 	new_sum="$(echo "$report" | cut -f2)"
-	if [ -z "$sum" ] || [ $new_sum -gt ${sum:-0} ]; then
+	if [ $new_sum -gt $sum ]; then
 	    sum=$new_sum;
-	else
-	    echo "Somethins goes wrong: no increase in summary size value"
+	    lastinc=$queries
+	elif [ $((queries - lastinc)) -eq $MAXNOINC ]; then
+	    echo "Somethins goes wrong: no increase in summary size in $MAXNOINC queries"
 	    exit 1
 	fi
-	if [ $sum -lt $((COUNT * SIZE)) ]; then
-	    sleep 0.5
-	fi
+#	if [ $sum -lt $((COUNT * SIZE)) ]; then
+#	    sleep 0.5
+#	fi
     else
 	echo "Null report"
 	exit 1
     fi
 done
 
-if [ ${sum:-0} -eq $((COUNT * SIZE)) ]; then
+if [ $sum -eq $((COUNT * SIZE)) ]; then
     echo "Summary size test passed"
 else
     echo "Summary size test failed"
+    exit 1
+fi
+
+if [ $queries -gt $MINQUERIES ]; then
+    echo "Query count (concurrency) test passed: $queries queries were made"
+else
+    echo "Query count (concurrency) test failed: only $queries queries were made"
     exit 1
 fi
