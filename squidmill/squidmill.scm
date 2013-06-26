@@ -695,7 +695,7 @@ c-lambda-end
        (eq? (string-ref arg 0) #\-)))
 
 (define (version)
-  "2.0.0")
+  "2.4")
 
 (define *default-pidfile* "/var/run/squidmill.pid")
 
