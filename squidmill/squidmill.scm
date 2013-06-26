@@ -263,12 +263,11 @@ c-lambda-end
   (make-string-join " union "))
 
 (define (bulk-insert db-fold-left bulk)
-  (with-transaction db-fold-left db-begin-immediate db-commit db-rollback
-    (lambda ()
-      (db-fold-left stub #f
-        (string-append
-          "insert or ignore into access_log" " "
-          (apply union-join bulk))))))
+  (db-fold-left stub #f
+    (string-append
+      "insert or ignore into access_log"
+      " "
+      (apply union-join bulk))))
 
 (define (make-bulk-insert db-fold-left maxrows)
   (let ((row-count (and maxrows
