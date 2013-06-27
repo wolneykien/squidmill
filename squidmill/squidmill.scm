@@ -22,6 +22,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <grp.h>
+#include <pwd.h>
 ")
 
 (define lasterror
@@ -39,6 +41,34 @@
 (define getpid
   (c-lambda () int
     "___result = getpid ();"))
+
+(define drop-group
+  (c-lambda (char-string) int
+#<<c-lambda-end
+struct group *gr;
+
+if ((gr = getgrnam (___arg1)) != NULL) {
+    ___result = setgid (gr->gr_gid);
+} else {
+    ___result = -1;
+}
+c-lambda-end
+  ))
+
+(define drop-user
+  (c-lambda (char-string) int
+#<<c-lambda-end
+struct passwd *pw;
+
+if ((pw = getpwnam (___arg1)) != NULL) {
+    if ((___result = initgroups (pw->pw_name, pw->pw_gid)) == 0) {
+        ___result = setuid (pw->pw_uid);
+    }
+} else {
+    ___result = -1;
+}
+c-lambda-end
+  ))
 
 (c-define (stat->list dev ino mode uid gid atime mtime ctime)
 	  (long long int int int long long long) scheme-object "stat2list" ""
@@ -712,6 +742,8 @@ c-lambda-end
       "    -D                Debug mode on"
       "    -b [PIDFILE]      Detach and run in the background"
       "                      Default pid-file is /var/run/squidmill.pid"
+      "    -U USERNAME       Drop user privileges"
+      "    -G GROUPNAME      Drop group privileges"
       "    -L LOG-FILE       Write the messages to that file instead of stderr"
       " "
       "Update options:"
@@ -754,13 +786,15 @@ c-lambda-end
         (report #f)
         (summary #f)
 	(background #f)
+	(user #f)
+	(group #f)
 	(log-file #f)
         (debug #f))
     (let scan-next ((args command-line))
       (if (null? args)
         (append (list db-name socket-path bulk-size follow sdate edate ident-pat
                       uri-pat minsize maxsize limit round-data report
-                      summary debug background log-file)
+                      summary debug background user group log-file)
                 input-files)
         (if (opt-key? (car args))
           (case (string->symbol (substring (car args) 1 2))
@@ -826,6 +860,10 @@ c-lambda-end
                     (begin
                       (set! background (cadr args))
                       (scan-next (cddr args)))))
+	    ((U) (set! user (cadr args))
+	         (scan-next (cddr args)))
+	    ((G) (set! group (cadr args))
+	         (scan-next (cddr args)))
 	    ((L) (set! log-file (cadr args))
 	         (scan-next (cddr args)))
             (else (usage)
@@ -1092,8 +1130,14 @@ c-lambda-end
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              summary debug background log-file . input-files)
+              summary debug background user group log-file . input-files)
   (set! *debug* debug)
+  (if group
+    (or (drop-group group)
+	(raise-lasterror)))
+  (if user
+      (or (drop-user user)
+	  (raise-lasterror)))
   (let* ((log-port (and log-file
 			(open-output-file `(path: ,log-file append: #t create: maybe))))
 	 (stderr (current-error-port))
