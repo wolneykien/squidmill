@@ -29,6 +29,7 @@ save space and reporting time.
 
 %install
 %makeinstall initdir=%buildroot%{_initdir} unitdir=%buildroot%_unitdir
+mkdir -p %buildroot%_var/run/squidmill
 
 %check
 %make check
