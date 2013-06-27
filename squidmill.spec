@@ -41,6 +41,7 @@ save space and reporting time.
 %_initdir/squidmill
 %_unitdir/squidmill.service
 %_sysconfdir/sysconfig/squidmill
+%attr(0755, squid, squid) %dir %_var/run/squidmill
 
 %changelog
 * Thu Jun 27 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt1

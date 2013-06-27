@@ -3,9 +3,10 @@
 Description=Squid access logfile processor
 
 [Service]
+Type=forking
+PIDFile=/var/run/squidmill/squidmill.pid
 EnvironmentFile=/etc/sysconfig/squidmill
-User=squid
-ExecStart=/usr/sbin/squidmill -d $DBFILE -B 1 -R $MAXRECORDS -F $SQUIDLOGFILE
+ExecStart=/usr/sbin/squidmill -U $SQUIDLOGUSER -G $SQUIDLOGUSER -b /var/run/squidmill/squidmill.pid -c /var/run/squidmill/squidmill.sock -L $LOGFILE -d $DBFILE -R $MAXRECORDS -F $SQUIDLOGFILE
 
 [Install]
 WantedBy=multi-user.target

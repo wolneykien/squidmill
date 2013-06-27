@@ -7,7 +7,8 @@
 # Source function library.
 . /etc/init.d/functions
 
-PIDFILE=/var/run/squidmill.pid
+PIDFILE=/var/run/squidmill/squidmill.pid
+SOCKET=/var/run/squidmill/squidmill.sock
 LOCKFILE=/var/lock/subsys/squidmill
 SQUIDLOGFILE=
 SQUIDLOGUSER=
@@ -60,11 +61,16 @@ start()
     fi
 
     start_daemon --pidfile "$PIDFILE" \
-                 --make-pidfile \
                  --lockfile "$LOCKFILE" \
                  --displayname squidmill \
-                 -- /bin/su -s /bin/sh -l "$SQUIDLOGUSER" \
-                            -c "'/usr/sbin/squidmill -d \"$DBFILE\" -B 1 ${MAXRECORDS:+-R $MAXRECORDS} -F \"$SQUIDLOGFILE\"'"
+                 -- /usr/sbin/squidmill -U "$SQUIDLOGUSER" \
+                                        -G "$SQUIDLOGUSER" \
+                                        -b "$PIDFILE" \
+                                        -c "$SOCKET" \
+                                        ${LOGFILE:+-L "$LOGFILE"} \
+                                        -d "$DBFILE" \
+                                        ${MAXRECORDS:+-R "$MAXRECORDS"} \
+                                        -F "$SQUIDLOGFILE"
 }
 
 stop()
@@ -72,7 +78,7 @@ stop()
     stop_daemon --pidfile "$PIDFILE" \
                 --lockfile "$LOCKFILE" \
                 --displayname squidmill \
-                -- /bin/su
+                -- /usr/sbin/squidmill
 }
 
 case "$1" in
