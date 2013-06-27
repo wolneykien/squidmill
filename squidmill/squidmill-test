@@ -23,7 +23,7 @@ ls -1 "${TEST_DIR%/}" | grep '^[0-9]\+-' | sort | (
     done
     echo ""
     if [ $failed -eq 0 ]; then
-	echo "All test passed"
+	echo "All tests passed"
     else
 	echo "Some tests failed"
 	exit 1
