@@ -45,6 +45,7 @@ save space and reporting time.
 
 %changelog
 * Thu Jun 27 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt1
+- Run service squidmill as forking daemon.
 - Update the program internal version number.
 - Bulk insert without an explicit transaction (faster!).
 - Server socket for DB-file, client otherwise.
