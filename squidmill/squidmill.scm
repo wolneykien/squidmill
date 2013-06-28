@@ -179,6 +179,10 @@ c-lambda-end
 			       (car args))
 		          message
 			  port)))
+     ((and (uncaught-exception? ex)
+	   (uncaught-exception-reason ex))
+      (display-exception (uncaught-exception-reason ex)
+			 port))
      (else
       (display-exception ex port)))))
 
