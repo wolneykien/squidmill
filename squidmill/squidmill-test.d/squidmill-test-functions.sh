@@ -47,7 +47,7 @@ print_log()
 count_log()
 {
     if [ -f "$1" ]; then
-	cat "$DIR/$PREFIX.access.log" | wc -l
+	cat "$1" | wc -l
     else
 	echo 0
     fi
