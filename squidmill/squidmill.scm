@@ -597,7 +597,8 @@ c-lambda-end
 	      (report-exception e)))
        (report-exception e))
      #f)
-   (open-input-file-or-raise path)))
+   (lambda ()
+     (open-input-file-or-raise path))))
 
 (define *reopen-delay* 0.1)
 (define *read-delay* 0.01)
