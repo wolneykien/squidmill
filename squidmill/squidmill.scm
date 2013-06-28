@@ -179,10 +179,6 @@ c-lambda-end
 			       (car args))
 		          message
 			  port)))
-     ((and (uncaught-exception? ex)
-	   (uncaught-exception-reason ex))
-      (display-exception (uncaught-exception-reason ex)
-			 port))
      (else
       (display-exception ex port)))))
 
@@ -1022,7 +1018,9 @@ c-lambda-end
       (let ((instance
 	     (with-exception-catcher
 	       (lambda (e)
-		 (report-exception e)
+		 (if (uncaught-exception? e)
+		   (report-exception (uncaught-exception-reason e))
+		   (report-exception e))
 		 #f)
 	       (lambda ()
 		 (thread-join! (car tail) 0 (car tail))))))
