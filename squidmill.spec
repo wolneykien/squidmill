@@ -16,6 +16,10 @@ BuildRequires: gambit-signal-devel >= 1.1-alt1
 BuildRequires: gambit-dsock-devel >= 1.1-alt1
 BuildRequires: rpm-macros-fillup sqlite3 /usr/bin/dc
 
+Requires: gambit-sqlite3 >= 1.2-alt7
+Requires: gambit-signal >= 1.1-alt1
+Requires: gambit-dsock >= 1.1-alt1
+
 %description
 Squidmill daemon acquires and integrates information from a
 Squid proxy server access log files. Rounding is supported to
