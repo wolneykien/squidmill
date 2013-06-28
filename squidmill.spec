@@ -50,6 +50,7 @@ mkdir -p %buildroot%_var/run/squidmill
 
 %changelog
 * Thu Jun 27 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt1
+- Explicitly require gambit-* versions.
 - Run service squidmill as forking daemon.
 - Update the program internal version number.
 - Bulk insert without an explicit transaction (faster!).
