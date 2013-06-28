@@ -50,6 +50,8 @@ mkdir -p %buildroot%_var/run/squidmill
 
 %changelog
 * Thu Jun 27 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt1
+- Keep on trying to read the files in the follow mode in the case
+  of an error.
 - Explicitly require gambit-* versions.
 - Run service squidmill as forking daemon.
 - Update the program internal version number.
