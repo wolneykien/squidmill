@@ -7,7 +7,7 @@ PREFIX="${PREFIX:-${0##*/}}"
 COUNT=1000
 
 # Cleanup
-rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log"
+rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log" "$DIR/$PREFIX.access.log.1"
 
 # The test
 echo "Call squidmill in background to insert the written records in follow mode"
@@ -34,9 +34,15 @@ check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 2 * SIZE)) 'access_log'
 
 echo "Remove the file on disk"
 rm "$DIR/$PREFIX.access.log"
-echo "Write the third $COUNT records to the re-created test log file"
-print_log $COUNT $((COUNT * 2)) >"$DIR/$PREFIX.access.log"
-assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
+echo "Write the third $COUNT records to the re-created yet unreadable test log file"
+print_log $COUNT $((COUNT * 2)) >"$DIR/$PREFIX.access.log.1"
+assert_written "$DIR/$PREFIX.access.log.1" -eq $COUNT
+chmod a-r "$DIR/$PREFIX.access.log.1"
+mv "$DIR/$PREFIX.access.log.1" "$DIR/$PREFIX.access.log"
+echo "Wait a little..."
+sleep 1
+echo "Make the test log file readable again"
+chmod ug+r "$DIR/$PREFIX.access.log"
 
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 3 - 1))
 check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 3)) 'access_log'
