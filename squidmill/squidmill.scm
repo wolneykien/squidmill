@@ -698,10 +698,14 @@ c-lambda-end
 					       (not (= (stat-gid (cdr file))
 						       (stat-gid new-stat)))))
 				    (let ((new-port (and (close-or-report port (car file))
-							 (open-input-file-or-ignore (car file) port))))
-				      (if (and (not accessible)
-					       (not (null? new-stat)) new-port)
-					(debug-message "File become accessible" #f (car file)))
+							 (open-input-file-or-ignore (car file)
+										    port))))
+				      (if (and (not accessible) new-port)
+					(debug-message "File become accessible" #f
+						       (car file))
+					(if (and accessible (not new-port))
+					    (debug-message "File become inaccessible" #f
+							   (car file))))
 				      (list (cons (car file) new-stat)
 					    new-port
 					    now
@@ -710,7 +714,7 @@ c-lambda-end
 					     (null? new-stat)
 					     (not (null? (cdr file))))
 				      (begin
-					(debug-message "File become inaccessible" #f (car file))
+					(debug-message "File info become inaccessible" #f (car file))
 					(list file port now #f))
 				      (list file port now accessible))))
 				(list file port timestamp accessible)))))
