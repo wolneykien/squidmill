@@ -70,20 +70,22 @@ if ((pw = getpwnam (___arg1)) != NULL) {
 c-lambda-end
   ))
 
-(c-define (stat->list dev ino mode uid gid atime mtime ctime)
-	  (long long int int int long long long) scheme-object "stat2list" ""
-  (list dev ino mode uid gid atime mtime ctime))
+(define-structure stat dev ino mode uid gid atime mtime ctime)
+
+(c-define (make-stat-wrapper dev ino mode uid gid atime mtime ctime)
+	  (long long int int int long long long) scheme-object "make_stat" ""
+  (make-stat dev ino mode uid gid atime mtime ctime))
 
 (c-define (empty-list) () scheme-object "empty_list" ""
   '())
 
-(define stat
+(define read-file-stat
   (c-lambda (char-string) scheme-object
 #<<c-lambda-end
 struct stat sb;
 
 if (stat (___arg1, &sb) == 0) {
-  ___result = stat2list (sb.st_dev, sb.st_ino, sb.st_mode, sb.st_uid, sb.st_gid, sb.st_atime, sb.st_mtime, sb.st_ctime);
+  ___result = make_stat (sb.st_dev, sb.st_ino, sb.st_mode, sb.st_uid, sb.st_gid, sb.st_atime, sb.st_mtime, sb.st_ctime);
 } else {
   ___result = empty_list ();
 }
@@ -590,12 +592,20 @@ c-lambda-end
 	((no-such-file-or-directory-exception? e)
 	 (debug-message "File disappeared" #f path))
 	((os-exception? e)
-	 (debug-message "File become inaccessible"
+	 (debug-message "Unable to reopen the file"
 			(os-exception-message e)
 			path))
 	(else (debug-message "Unable to reopen the file" path " ")
 	      (report-exception e)))
-       (report-exception e))
+       (cond
+	((no-such-file-or-directory-exception? e)
+	 (debug-message "File doesn't exist" #f path))
+	((os-exception? e)
+	 (debug-message "Unable to open the file"
+			(os-exception-message e)
+			path))
+	(else (debug-message "Unable to open the file" path " ")
+	      (report-exception e))))
      #f)
    (lambda ()
      (open-input-file-or-raise path))))
@@ -626,7 +636,7 @@ c-lambda-end
     (debug-message "Follow the files until interrupted"))
   (let ((add-log (make-add-log db-fold-left bulk-size maxrows))
 	(inputs (map (lambda (file)
-		       (let ((file-stat (stat file))
+		       (let ((file-stat (read-file-stat file))
 			     (file-port (open-input-file-or-ignore file #f)))
 			 (list (cons file file-stat)
 			       file-port
@@ -674,11 +684,19 @@ c-lambda-end
 			   (list
 			    (let ((now (time->seconds (current-time))))
 			      (if (> (- now timestamp) *reopen-delay*)
-				(let ((new-stat (stat (car file))))
+				(let ((new-stat (read-file-stat (car file))))
 				  (if (and (not (null? new-stat))
 					   (or (null? (cdr file))
-					       (not (= (cadr file) (car new-stat)))
-					       (not (= (caddr file) (cadr new-stat)))))
+					       (not (= (stat-dev (cdr file))
+						       (stat-dev new-stat)))
+					       (not (= (stat-ino (cdr file))
+						       (stat-ino new-stat)))
+					       (not (= (stat-mode (cdr file))
+						       (stat-mode new-stat)))
+					       (not (= (stat-uid (cdr file))
+						       (stat-uid new-stat)))
+					       (not (= (stat-gid (cdr file))
+						       (stat-gid new-stat)))))
 				    (let ((new-port (and (close-or-report port (car file))
 							 (open-input-file-or-ignore (car file) port))))
 				      (if (and (not accessible)
