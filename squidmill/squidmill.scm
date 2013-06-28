@@ -575,21 +575,29 @@ c-lambda-end
 	    '())
 	  bulk))))
 
+(define (open-input-file-or-raise path)
+  (if (equal? path "-")
+    (current-input-port)
+    (let ((port (open-input-file path)))
+      (debug-message "Open file" #f path)
+      port)))
+
 (define (open-input-file-or-ignore path existing-port)
   (with-exception-catcher
    (lambda (e)
-     (if (no-such-file-or-directory-exception? e)
-       (begin
-	 (if existing-port
-	   (debug-message "File disappeared" #f path))
-	 #f)
-       (raise e)))
-   (lambda ()
-     (if (equal? path "-")
-       (current-input-port)
-       (let ((port (open-input-file path)))
-	 (debug-message "Open file" #f path)
-	 port)))))
+     (if existing-port
+       (cond
+	((no-such-file-or-directory-exception? e)
+	 (debug-message "File disappeared" #f path))
+	((os-exception? e)
+	 (debug-message "File become inaccessible"
+			(os-exception-message e)
+			path))
+	(else (debug-message "Unable to reopen the file" path " ")
+	      (report-exception e)))
+       (report-exception e))
+     #f)
+   (open-input-file-or-raise path)))
 
 (define *reopen-delay* 0.1)
 (define *read-delay* 0.01)
@@ -705,7 +713,7 @@ c-lambda-end
     (let ((add-log (make-add-log db-fold-left bulk-size maxrows)))
       (for-each
         (lambda (file)
-	  (let ((port (open-input-file-or-ignore file #f)))
+	  (let ((port (open-input-file-or-raise file)))
 	    (if port
 	      (with-exception-catcher
 	        (lambda (e)
