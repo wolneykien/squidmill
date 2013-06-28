@@ -593,7 +593,7 @@ c-lambda-end
 	 (debug-message "File disappeared" #f path))
 	((os-exception? e)
 	 (debug-message "Unable to reopen the file"
-			(os-exception-message e)
+			(err-code->string (os-exception-code e))
 			path))
 	(else (debug-message "Unable to reopen the file" path " ")
 	      (report-exception e)))
@@ -602,7 +602,7 @@ c-lambda-end
 	 (debug-message "File doesn't exist" #f path))
 	((os-exception? e)
 	 (debug-message "Unable to open the file"
-			(os-exception-message e)
+			(err-code->string (os-exception-code e))
 			path))
 	(else (debug-message "Unable to open the file" path " ")
 	      (report-exception e))))
