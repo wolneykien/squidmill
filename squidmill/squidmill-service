@@ -89,7 +89,7 @@ case "$1" in
       stop
       ;;
     status)
-      status --pidfile "$PIDFILE" --displayname squidmill /bin/su
+      status --pidfile "$PIDFILE" --displayname squidmill /usr/sbin/squidmill
       ;;
     restart|reload|condrestart|condreload)
         stop
