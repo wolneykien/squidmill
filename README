@@ -1,0 +1,13 @@
+Squid proxy server access log collector with rounding support
+
+Squidmill daemon acquires and integrates information from the Squid proxy server access log files. Rounding is supported to save space and reporting time.
+
+The bundled Makefile is adjusted to produce a standalone executable and run unit tests. The RPM spec is compatible with ALT Linux (Sisyphus).
+
+The code is released under GNU GPL v3+ license.
+
+The program uses a set of the following shared libraries:
+
+* *gambit-sqlite3* — the sqlite3 interface ([wolneykien/gambit-sqlite3](http://github.com/wolneykien/gambit-sqlite3));
+* *gambit-signal* — UNIX signals ([wolneykien/gambit-signal](http://github.com/wolneykien/gambit-signal));
+* *gambit-dsock* — UNIX domain sockets ([wolneykien/gambit-dsock](http://github.com/wolneykien/gambit-dsock)).

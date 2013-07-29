@@ -21,7 +21,7 @@ Requires: gambit-signal >= 1.1-alt1
 Requires: gambit-dsock >= 1.1-alt1
 
 %description
-Squidmill daemon acquires and integrates information from a
+Squidmill daemon acquires and integrates information from the
 Squid proxy server access log files. Rounding is supported to
 save space and reporting time.
 
