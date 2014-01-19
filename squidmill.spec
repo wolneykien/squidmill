@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.4
-Release: alt2
+Release: alt3
 
 Source: %name-%version.tar
 
@@ -49,6 +49,9 @@ mkdir -p %buildroot%_var/run/squidmill
 %attr(0755, squid, squid) %dir %_var/run/squidmill
 
 %changelog
+* Sun Jan 19 2014 Paul Wolneykien <manowar@altlinux.org> 2.4-alt3
+- Rebuild with a new version of Gambit
+
 * Thu Jul 11 2013 Paul Wolneykien <manowar@altlinux.org> 2.4-alt2
 - Fix the status proc of the init-script.
 
