@@ -185,6 +185,29 @@ check_db_count()
     fi
 }
 
+# Counts the records printed by squidmill access_log report
+# and compares the result with the specified number.
+#
+# args: sock-file cmp expected-count
+check_access_count()
+{
+    local sock="$1"; shift
+    local op="$1"; shift
+    local expected="$1"; shift
+    local count=0
+
+    echo "Count the cached access_log records"
+	count=$(run_squidmill -c "$sock" -r -a | wc -l)
+
+    if [ $count $op $expected ]; then
+	    echo "Count OK"
+	    return 0
+    else
+	    echo "Count error: found $count records, expected $expected"
+	    return 1
+    fi
+}
+
 # Compares the sum of the given column in all of the specified
 # tables with the given number.
 #
@@ -211,6 +234,44 @@ check_db_sum()
     else
 	echo "Sum error: sum is $db_sum, expected $expected"
 	return 1
+    fi
+}
+
+# Compares the value of the squidmill summary report with
+# the given number.
+#
+# args: sock-file col cmp expected-sum
+check_summary()
+{
+    local sock="$1"; shift
+    local col="$1"; shift
+    local op="$1"; shift
+    local expected="$1"; shift
+    local sum=0
+
+    local coln=
+    case "$col" in
+        size)
+            coln=3
+            ;;
+        elapsed)
+            coln=4
+            ;;
+        *)
+            echo "Unexpected column: $col"
+            return 2
+            ;;
+    esac
+
+    echo "Request summary report. Check '$col' value"
+    sum=$(run_squidmill -c "$sock" -r -S | gawk -e "{ print \$$coln; }")
+
+    if [ $sum $op $expected ]; then
+	    echo "Sum OK"
+	    return 0
+    else
+	    echo "Sum error: sum is $sum, expected $expected"
+	    return 1
     fi
 }
 

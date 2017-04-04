@@ -1,6 +1,6 @@
 ;; Squid proxy server access log collector with rounding support
 ;;
-;; Copyright (C) 2013 Paul Wolneykien <manowar@altlinux.org>
+;; Copyright (C) 2017 Paul Wolneykien <manowar@altlinux.org>
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -73,11 +73,11 @@ c-lambda-end
 (define-structure stat dev ino mode uid gid atime mtime ctime)
 
 (c-define (make-stat-wrapper dev ino mode uid gid atime mtime ctime)
-		  (long long int int int long long long) scheme-object "make_stat" ""
-		  (make-stat dev ino mode uid gid atime mtime ctime))
+	  (long long int int int long long long) scheme-object "make_stat" ""
+  (make-stat dev ino mode uid gid atime mtime ctime))
 
 (c-define (empty-list) () scheme-object "empty_list" ""
-		  '())
+  '())
 
 (define read-file-stat
   (c-lambda (char-string) scheme-object
@@ -536,6 +536,19 @@ c-lambda-end
        (values seed 0)
        stm))))
 
+(define (access-report db-fold-left out-proc seed
+                       stime etime ident-pat uri-pat limit)
+  (let ((where-stm (make-where-stm stime etime ident-pat uri-pat))
+        (order-stm (make-order-stm ident-pat uri-pat))
+        (limit-stm (make-limit-stm (and limit (+ limit 1)))))
+    (let ((stm ((make-string-join " ")
+				"select * from access_log"
+                where-stm order-stm limit-stm)))
+      (db-fold-left
+       (make-out-proc out-proc seed limit)
+       (values seed 0)
+       stm))))
+
 (define (s-report-output seed . cols)
   (write cols)
   (newline)
@@ -751,16 +764,12 @@ c-lambda-end
 					(close-or-report port file))))))
 		 files))))
 
-(define (console db-fold-left)
-  (display "Squidmill SQL console")
-  (newline))
-
 (define (opt-key? arg)
   (and (> (string-length arg) 1)
        (eq? (string-ref arg 0) #\-)))
 
 (define (version)
-  "2.4")
+  "2.5")
 
 (define *default-pidfile* "/var/run/squidmill.pid")
 
@@ -780,7 +789,6 @@ c-lambda-end
 	"    -U USERNAME       Drop user privileges"
 	"    -G GROUPNAME      Drop group privileges"
 	"    -L LOG-FILE       Write the messages to that file instead of stderr"
-	"    -C                SQL console mode"
 	" "
 	"Update options:"
 	"    -B NUMBER         Read/insert bulk size (default is 1)"
@@ -802,6 +810,7 @@ c-lambda-end
 	"    -u [PATTERN]      Count statistic for individual URIs filtering"
 	"                      them optionally"
 	"    -S                Calculate final summary"
+    "    -a                Output all access_log entries"
 	"    -l NUMBER         Limit report by that number of rows"))
   (newline))
 
@@ -826,12 +835,12 @@ c-lambda-end
 		(group #f)
 		(log-file #f)
         (debug #f)
-		(console-mode #f))
+		(report-access #f))
     (let scan-next ((args command-line))
       (if (null? args)
 		  (append (list db-name socket-path bulk-size follow sdate edate ident-pat
 						uri-pat minsize maxsize limit round-data report
-						summary debug background user group log-file console-mode)
+						summary debug background user group log-file report-access)
 				  input-files)
 		  (if (opt-key? (car args))
 			  (case (string->symbol (substring (car args) 1 2))
@@ -903,7 +912,7 @@ c-lambda-end
 				 (scan-next (cddr args)))
 				((L) (set! log-file (cadr args))
 				 (scan-next (cddr args)))
-				((C) (set! console-mode #t)
+				((a) (set! report-access #t)
 				 (scan-next (cdr args)))
 				(else (usage)
 					  (exit 0)))
@@ -911,7 +920,7 @@ c-lambda-end
 				(set! input-files (append input-files (list (car args))))
 				(scan-next (cdr args))))))))
 
-(define (do-report db-fold-left report-format . report-args)
+(define (do-report report db-fold-left report-format . report-args)
   (apply report
 		 (append
 		  (list db-fold-left)
@@ -1123,7 +1132,7 @@ c-lambda-end
 
 (define (do-main db-name socket-path bulk-size follow sdate edate ident-pat
 				 uri-pat minsize maxsize limit round-data report-format
-				 summary debug console-mode . input-files)
+				 summary debug report-access . input-files)
   (call-with-values
 	  (lambda ()
 		(let ((socket
@@ -1172,10 +1181,6 @@ c-lambda-end
 			   (begin
 				 (debug-message "Start the SQL server")
 				 (thread-start! sql-server)))
-		   (if console-mode
-			   (if db-fold-left
-				   (console db-fold-left)
-				   (raise "No DB or socket connection to run the console")))
 		   (if (not (null? input-files))
 			   (if db-fold-left
 				   (apply add-logs db-fold-left bulk-size follow
@@ -1191,9 +1196,12 @@ c-lambda-end
 				   (raise "No DB at hand. Rounding isn't possible")))
 		   (if report-format
 			   (if db-fold-left
-				   (do-report db-fold-left report-format
-							  sdate edate minsize maxsize
-							  ident-pat uri-pat limit summary)
+                   (if report-access
+                       (do-report access-report db-fold-left report-format
+                                  sdate edate ident-pat uri-pat limit)
+                       (do-report report db-fold-left report-format
+                                  sdate edate minsize maxsize
+                                  ident-pat uri-pat limit summary))
 				   (raise "No DB or socket connection. Reporting isn't possible")))
 		   (if sql-server
 			   (thread-join! sql-server))
@@ -1201,7 +1209,7 @@ c-lambda-end
 
 (define (main db-name socket-path bulk-size follow sdate edate ident-pat
               uri-pat minsize maxsize limit round-data report-format
-              summary debug background user group log-file console-mode . input-files)
+              summary debug background user group log-file report-access . input-files)
   (set! *debug* debug)
   (if group
 	  (or (drop-group group)
@@ -1233,7 +1241,7 @@ c-lambda-end
 			 (current-error-port log-port)
 			 (display-message "*** Log started")))
 	   (let* ((pid (and background
-						(detach (and (string? background) background))))
+                        (detach (and (string? background) background))))
 			  (close-pid (lambda ()
 						   (if pid
 							   (delete-pidfile background)))))
@@ -1244,7 +1252,7 @@ c-lambda-end
 		  (lambda ()
 			(apply do-main db-name socket-path bulk-size follow sdate edate
 				   ident-pat uri-pat minsize maxsize limit round-data
-				   report-format summary debug console-mode input-files)
+				   report-format summary debug report-access input-files)
 			(close-pid))))
 	   (close-log!)))))
 

@@ -12,7 +12,7 @@ rm -f "$DIR/$PREFIX.squidmill.log" "$DIR/$PREFIX.db" "$DIR/$PREFIX.access.log" "
 # The test
 echo "Call squidmill in background to insert the written records in follow mode"
 echo "See $PREFIX.squidmill.log for details"
-run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -F "$DIR/$PREFIX.access.log"
+run_squidmill -D -d "$DIR/$PREFIX.db" -L "$DIR/$PREFIX.squidmill.log" -b "$DIR/$PREFIX.squidmill.pid" -F "$DIR/$PREFIX.access.log" -c "$DIR/$PREFIX.squidmill.sock"
 pid=$(read_pid "$DIR/$PREFIX.squidmill.pid")
 trap "terminate_squidmill $pid" EXIT HUP INT QUIT TERM
 
@@ -21,16 +21,16 @@ print_log $COUNT 0 >"$DIR/$PREFIX.access.log"
 assert_written "$DIR/$PREFIX.access.log" -eq $COUNT
 
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT - 1))
-check_db_count "$DIR/$PREFIX.db" -eq $COUNT 'access_log'
-check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * SIZE)) 'access_log'
+check_access_count "$DIR/$PREFIX.squidmill.sock" -eq $COUNT
+check_summary "$DIR/$PREFIX.squidmill.sock" 'size' -eq $((COUNT * SIZE))
 
 echo "Write the second $COUNT records to the test log file"
 print_log $COUNT $COUNT >>"$DIR/$PREFIX.access.log"
 assert_written "$DIR/$PREFIX.access.log" -eq $((COUNT * 2))
 
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 2 - 1))
-check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 2)) 'access_log'
-check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 2 * SIZE)) 'access_log'
+check_access_count "$DIR/$PREFIX.squidmill.sock" -eq $((COUNT * 2))
+check_summary "$DIR/$PREFIX.squidmill.sock" 'size' -eq $((COUNT * 2 * SIZE))
 
 echo "Remove the file on disk"
 rm "$DIR/$PREFIX.access.log"
@@ -45,5 +45,5 @@ echo "Make the test log file readable again"
 chmod ug+r "$DIR/$PREFIX.access.log"
 
 wait_for_timestamp "$DIR/$PREFIX.squidmill.log" $((COUNT * 3 - 1))
-check_db_count "$DIR/$PREFIX.db" -eq $((COUNT * 3)) 'access_log'
-check_db_sum "$DIR/$PREFIX.db" 'size' -eq $((COUNT * 3 * SIZE)) 'access_log'
+check_access_count "$DIR/$PREFIX.squidmill.sock" -eq $((COUNT * 3))
+check_summary "$DIR/$PREFIX.squidmill.sock" 'size' -eq $((COUNT * 3 * SIZE))
