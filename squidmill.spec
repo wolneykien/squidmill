@@ -10,7 +10,7 @@ Summary: Squid proxy server access log collector with rounding support
 License: GPLv3+
 Group: System/Configuration/Other
 
-BuildRequires: gambit
+BuildRequires: gambit-devel
 BuildRequires: gambit-sqlite3-devel >= 1.2-alt7
 BuildRequires: gambit-signal-devel >= 1.1-alt1
 BuildRequires: gambit-dsock-devel >= 1.1-alt1
