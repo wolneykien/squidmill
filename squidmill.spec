@@ -1,6 +1,6 @@
 Name: squidmill
 Version: 2.6
-Release: alt3
+Release: alt3.1
 
 Source: %name-%version.tar
 
@@ -33,7 +33,14 @@ save space and reporting time.
 
 %install
 %makeinstall initdir=%buildroot%{_initdir} unitdir=%buildroot%_unitdir
+
 mkdir -p %buildroot%_var/run/squidmill
+
+echo "d /run/squidmill squid squid 775" >   %buildroot%_var/lib/tmpfiles.d/squidmill.conf
+
+
+
+
 
 %check
 %make check
@@ -46,9 +53,12 @@ mkdir -p %buildroot%_var/run/squidmill
 %_initdir/squidmill
 %_unitdir/squidmill.service
 %_sysconfdir/sysconfig/squidmill
-%attr(0755, squid, squid) %dir %_var/run/squidmill
+%attr(0775, squid, squid) %dir %_var/run/squidmill
 
 %changelog
+* Sat Feb 11 2023 Hihin Ruslan <ruslandh@altlinux.ru> 2.6-alt3.1
+- Add dynamic creation of the /run/squidmill  directory
+ 
 * Mon Feb 11 2019 Paul Wolneykien <manowar@altlinux.org> 2.6-alt3
 - Rebuild with a new version of Gambit
 
