@@ -70,7 +70,35 @@ if ((pw = getpwnam (___arg1)) != NULL) {
 c-lambda-end
   ))
 
-(define-structure stat dev ino mode uid gid atime mtime ctime)
+; Doesn't work with Gambit v4.9.4, see
+; https://github.com/gambit/gambit/issues/815
+;(define-structure stat dev ino mode uid gid atime mtime ctime)
+(define (make-stat dev ino mode uid gid atime mtime ctime)
+  (list dev ino mode uid gid atime mtime ctime))
+
+(define (stat-dev stat)
+  (first stat))
+
+(define (stat-ino stat)
+  (second stat))
+
+(define (stat-mode stat)
+  (third stat))
+
+(define (stat-uid stat)
+  (fourth stat))
+
+(define (stat-gid stat)
+  (fifth stat))
+
+(define (stat-atime stat)
+  (sixth stat))
+
+(define (stat-mtime stat)
+  (seventh stat))
+
+(define (stat-ctime stat)
+  (eighth stat))
 
 (c-define (make-stat-wrapper dev ino mode uid gid atime mtime ctime)
 	  (long long int int int long long long) scheme-object "make_stat" ""
