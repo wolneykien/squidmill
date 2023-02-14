@@ -298,7 +298,7 @@ wait_for_timestamp()
     sleep ${3:-$DEFAULT_TIMEOUT} &
     local pid=$!
 
-    tail -n +0 --pid=$pid -F "$1" | ( grep -q -m 1 "^\"insert or ignore into access_log select $2.000," && kill -PIPE $pid )
+    tail -n +0 --pid=$pid -F "$1" | ( grep -q -m 1 "^\"insert or ignore into access_log select $2.000," && kill -PIPE $pid ) ||:
     if wait $pid; then
 	echo "Record hasn't been passed"
 	return 1
