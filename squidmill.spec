@@ -29,7 +29,7 @@ save space and reporting time.
 %setup
 
 %build
-%make includedir=%_includedir libdir=%_libdir
+%make CFLAGS='%optflags' includedir=%_includedir libdir=%_libdir
 
 %install
 %makeinstall initdir=%buildroot%_initdir unitdir=%buildroot%_unitdir
