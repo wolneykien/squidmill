@@ -11,7 +11,7 @@ squidmill: squidmill.o
 	  -L$(libdir)/gambit -lgambit-sqlite3 -lgambit-signal -lgambit-dsock -o squidmill
 
 squidmill.o: squidmill.c
-	gsc -:daq- -obj squidmill.c squidmill_.c
+	gsc -:daq- -obj -cc-options "$(CFLAGS)" squidmill.c squidmill_.c
 
 squidmill.c: squidmill.scm
 	gsc -:daq- -link $(includedir)/gambit/libgambit-sqlite3.c \
